@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# Exercise scripts/panel-updater.sh without root, systemd, Docker or a network.
+#
+# git, docker, curl and flock are replaced by stubs on PATH, and deploy.sh by a
+# stub in a throw-away copy of the repository. Each scenario checks the status
+# file the panel will read: its state, that it is valid JSON, and that the
+# request file was consumed (otherwise the systemd path unit re-triggers).
+#
+#   bash scripts/test-panel-updater.sh
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REAL_CP="$(command -v cp)"
+PY="$(command -v python3 || command -v python)"
+FAILS=0
+
+check() { # DESCRIPTION CONDITION...
+    local what="$1"; shift
+    if "$@"; then echo "  ok   $what"; else echo "  FAIL $what"; FAILS=$((FAILS + 1)); fi
+}
+
+state_is() { grep -q "\"state\":\"$1\"" "$REPO/run/update-status.json"; }
+message_has() { grep -q "$1" "$REPO/run/update-status.json"; }
+valid_json() { "$PY" -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$REPO/run/update-status.json"; }
+request_gone() { [ ! -e "$REPO/run/update-request" ]; }
+
+# setup PANEL_VERSION_BEFORE TAG_AFTER_PULL
+setup() {
+    T="$(mktemp -d)"
+    REPO="$T/repo"; STATE="$T/state"; STUBS="$T/bin"
+    mkdir -p "$REPO/scripts" "$REPO/run" "$STATE/data" "$STUBS"
+    cp "$HERE/panel-updater.sh" "$HERE/sqlite-backup.sh" "$REPO/scripts/"
+    echo "$1" > "$STATE/version"
+    compose() { printf 'services:\n  panel:\n    image: ghcr.io/xlee7s/realy-panel:${RELAYPANEL_PANEL_TAG:-%s}\n' "$1"; }
+    compose "$1" > "$REPO/docker-compose.release.yaml"
+    compose "$2" > "$STATE/compose-after-pull"
+    : > "$REPO/.env"
+    echo 'sqlite bytes' > "$STATE/data/data.db"
+    echo '{"target":"ignored"}' > "$REPO/run/update-request"
+
+    cat > "$REPO/deploy.sh" <<EOF
+#!/usr/bin/env bash
+echo "\${RELAYPANEL_BACKUP_DONE:-unset}" > "$STATE/deploy-backup-flag"
+[ -f "$STATE/deploy-fails" ] && { echo "deploy exploded"; exit 1; }
+cp "$STATE/next-version" "$STATE/version" 2>/dev/null || true
+echo "deployed"
+EOF
+    cat > "$STUBS/curl" <<EOF
+#!/usr/bin/env bash
+printf '{"status":"ok","version":"%s"}' "\$(cat "$STATE/version")"
+EOF
+    cat > "$STUBS/git" <<EOF
+#!/usr/bin/env bash
+[ -f "$STATE/git-fails" ] && { echo "fatal: local changes would be overwritten"; exit 1; }
+cp "$STATE/compose-after-pull" "$REPO/docker-compose.release.yaml"
+EOF
+    cat > "$STUBS/docker" <<EOF
+#!/usr/bin/env bash
+echo "docker \$*" >> "$STATE/docker-calls"
+case "\$*" in
+  *"-q panel"*)
+    [ -f "$STATE/ps-fails" ] && exit 1
+    [ -f "$STATE/no-container" ] || echo cid123 ;;
+  *"stop panel"*) [ -f "$STATE/stop-fails" ] && exit 1; touch "$STATE/stopped" ;;
+  *"start panel"*) rm -f "$STATE/stopped" ;;
+  *" config") [ -f "$STATE/config-fails" ] && exit 1; printf 'name: relaytest\nservices: {}\n' ;;
+  "volume ls"*)
+    [ -f "$STATE/volume-ls-fails" ] && exit 1
+    [ -f "$STATE/no-volume" ] || echo relaytest_panel_data ;;
+  "volume inspect"*) [ -f "$STATE/volume-inspect-fails" ] && exit 1; echo "$STATE/data" ;;
+  *"State.Running"*)
+    [ -f "$STATE/inspect-fails" ] && exit 1
+    if [ -f "$STATE/stopped" ]; then echo false; else echo true; fi ;;
+  *"Config.Env"*)
+    [ -f "$STATE/env-fails" ] && exit 1
+    if [ -f "$STATE/container-env" ]; then cat "$STATE/container-env"
+    else printf 'PATH=/usr/local/bin
+DATABASE_URL=sqlite:/app/data/data.db?mode=rwc
+'; fi ;;
+  inspect*) [ -f "$STATE/mounts-fails" ] && exit 1; echo "$STATE/data" ;;
+esac
+exit 0
+EOF
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$STUBS/flock"
+    # cp that fails on the database copy once $STATE/cp-fails exists.
+    cat > "$STUBS/cp" <<EOF
+#!/usr/bin/env bash
+case "\$*" in *data.db*) [ -f "$STATE/cp-fails" ] && exit 1 ;; esac
+exec "$REAL_CP" "\$@"
+EOF
+    chmod +x "$STUBS"/* "$REPO/deploy.sh"
+}
+
+run_updater() {
+    PATH="$STUBS:$PATH" \
+    RELAYPANEL_UPDATER_LOG="$T/updater.log" \
+    RELAYPANEL_UPDATER_LOCK="$T/updater.lock" \
+        bash "$REPO/scripts/panel-updater.sh" >/dev/null 2>&1
+}
+
+echo "pinned version"
+setup 1.2.10 1.2.11
+echo 'RELAYPANEL_PANEL_TAG=1.2.10' > "$REPO/.env"
+run_updater
+check "reports pinned" state_is pinned
+check "names the variable" message_has RELAYPANEL_PANEL_TAG
+check "status is valid JSON" valid_json
+check "request consumed" request_gone
+
+echo "git pull fails"
+setup 1.2.10 1.2.11
+touch "$STATE/git-fails"
+run_updater
+check "reports failed" state_is failed
+check "says git pull" message_has "git pull failed"
+check "log tail carries git's error" message_has "local changes would be overwritten"
+check "status is valid JSON" valid_json
+check "nothing was stopped" bash -c "! grep -q stop '$STATE/docker-calls' 2>/dev/null"
+
+echo "already up to date"
+setup 1.2.10 1.2.10
+run_updater
+check "reports up_to_date" state_is up_to_date
+check "panel was not restarted" bash -c "! grep -q stop '$STATE/docker-calls' 2>/dev/null"
+check "request consumed" request_gone
+
+echo "successful update with SQLite backup"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+run_updater
+check "reports succeeded" state_is succeeded
+check "records the new version" grep -q '"to_version":"1.2.11"' "$REPO/run/update-status.json"
+check "panel stopped before the copy" grep -q "stop panel" "$STATE/docker-calls"
+check "database backed up" bash -c "ls '$REPO'/backups/data-*-v1.2.10.db >/dev/null 2>&1"
+check "message mentions the backup" message_has "backed up"
+check "deploy.sh is told the backup is done" grep -qx 1 "$STATE/deploy-backup-flag"
+check "status is valid JSON" valid_json
+check "request consumed" request_gone
+
+echo "deploy.sh fails"
+setup 1.2.10 1.2.11
+touch "$STATE/deploy-fails"
+run_updater
+check "reports failed" state_is failed
+check "tries to bring the panel back" grep -q "up -d panel" "$STATE/docker-calls"
+check "status is valid JSON" valid_json
+
+echo "database backup fails"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/cp-fails"
+run_updater
+check "reports failed" state_is failed
+check "says the update was not applied" message_has "not applied"
+check "old panel started again" grep -q "start panel" "$STATE/docker-calls"
+check "deploy.sh never ran" bash -c "[ ! -e '$STATE/deploy-backup-flag' ]"
+check "status is valid JSON" valid_json
+
+# v1.2.12 (pre-release review): a stop that fails must not be followed by a
+# copy of a database that may still be written to — nor by the upgrade.
+echo "panel cannot be stopped for the backup"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/stop-fails"
+run_updater
+check "reports failed" state_is failed
+check "says the update was not applied" message_has "not applied"
+check "no backup was taken" bash -c "! ls '$REPO'/backups/data-*.db >/dev/null 2>&1"
+check "deploy.sh never ran" bash -c "[ ! -e '$STATE/deploy-backup-flag' ]"
+
+echo "panel state cannot be read"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/inspect-fails"
+run_updater
+check "reports failed" state_is failed
+check "no backup was taken" bash -c "! ls '$REPO'/backups/data-*.db >/dev/null 2>&1"
+check "deploy.sh never ran" bash -c "[ ! -e '$STATE/deploy-backup-flag' ]"
+
+# v1.2.12 (pre-release review, round 2): a lookup that FAILS is not "no
+# database". Each of these must stop the update without touching anything.
+for flags in ps-fails mounts-fails env-fails "no-container config-fails" \
+             "no-container volume-ls-fails" "no-container volume-inspect-fails"; do
+    echo "lookup fails: $flags"
+    setup 1.2.10 1.2.11
+    echo 1.2.11 > "$STATE/next-version"
+    for f in $flags; do touch "$STATE/$f"; done
+    run_updater
+    check "reports failed" state_is failed
+    check "no backup was taken" bash -c "! ls '$REPO'/backups/data-*.db >/dev/null 2>&1"
+    check "deploy.sh never ran" bash -c "[ ! -e '$STATE/deploy-backup-flag' ]"
+done
+
+echo "no container, database in the leftover volume (after compose down)"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/no-container"
+run_updater
+check "reports succeeded" state_is succeeded
+check "database backed up" bash -c "ls '$REPO'/backups/data-*-v1.2.10.db >/dev/null 2>&1"
+check "nothing was stopped" bash -c "! grep -q 'stop panel' '$STATE/docker-calls'"
+
+echo "no container and no volume: nothing to back up"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/no-container" "$STATE/no-volume"
+run_updater
+check "reports succeeded" state_is succeeded
+check "says it was not backed up" message_has "NOT backed up"
+
+echo "panel already stopped"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/stopped"
+run_updater
+check "reports succeeded" state_is succeeded
+check "database backed up" bash -c "ls '$REPO'/backups/data-*-v1.2.10.db >/dev/null 2>&1"
+check "no stop was needed" bash -c "! grep -q 'stop panel' '$STATE/docker-calls'"
+
+# v1.2.12 (full audit): the database is the file DATABASE_URL names. Any
+# other name used to count as "no data.db, nothing to back up".
+backup_holds() { # TEXT: the newest backup holds this text
+    local f; f="$(ls -1t "$REPO"/backups/data-*-v1.2.10.db 2>/dev/null | head -n1)"
+    [ -n "$f" ] && grep -q "$1" "$f"
+}
+
+echo "custom database file name"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+rm -f "$STATE/data/data.db"
+echo 'relay bytes' > "$STATE/data/relay.db"
+echo 'relay wal' > "$STATE/data/relay.db-wal"
+printf 'PATH=/usr/local/bin\nDATABASE_URL=sqlite:/app/data/relay.db?mode=rwc\n' > "$STATE/container-env"
+run_updater
+check "reports succeeded" state_is succeeded
+check "the named file is backed up" backup_holds 'relay bytes'
+check "with its WAL" bash -c "grep -q 'relay wal' '$REPO'/backups/data-*-v1.2.10.db-wal"
+
+echo "relative database path (the panel runs in /app)"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+echo 'rel bytes' > "$STATE/data/rel.db"
+printf 'DATABASE_URL=sqlite:data/rel.db\n' > "$STATE/container-env"
+run_updater
+check "reports succeeded" state_is succeeded
+check "the named file is backed up" backup_holds 'rel bytes'
+
+echo "no container: the file .env names, quoted"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+touch "$STATE/no-container"
+echo 'custom bytes' > "$STATE/data/custom.db"
+echo 'DATABASE_URL="sqlite:///app/data/custom.db?mode=rwc"' > "$REPO/.env"
+run_updater
+check "reports succeeded" state_is succeeded
+check "the named file is backed up" backup_holds 'custom bytes'
+
+echo "database outside the data volume"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+printf 'DATABASE_URL=sqlite:/srv/relay.db?mode=rwc\n' > "$STATE/container-env"
+run_updater
+check "reports failed" state_is failed
+check "says the update was not applied" message_has "not applied"
+check "no backup was taken" bash -c "! ls '$REPO'/backups/data-*.db >/dev/null 2>&1"
+check "deploy.sh never ran" bash -c "[ ! -e '$STATE/deploy-backup-flag' ]"
+check "nothing was stopped" bash -c "! grep -q 'stop panel' '$STATE/docker-calls'"
+
+echo "the panel runs on PostgreSQL"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+printf 'DATABASE_URL=postgres://relay:secret@db:5432/relay\n' > "$STATE/container-env"
+run_updater
+check "reports succeeded" state_is succeeded
+check "says it was not backed up" message_has "NOT backed up"
+check "nothing was stopped" bash -c "! grep -q 'stop panel' '$STATE/docker-calls'"
+
+echo "a request planted as a directory"
+setup 1.2.10 1.2.10
+rm -f "$REPO/run/update-request"
+mkdir -p "$REPO/run/update-request/nested"
+run_updater
+check "the directory is removed (no re-trigger loop)" request_gone
+check "the run still completes" state_is up_to_date
+
+echo "old backups are pruned to five"
+setup 1.2.10 1.2.11
+echo 1.2.11 > "$STATE/next-version"
+mkdir -p "$REPO/backups"
+for i in 1 2 3 4 5 6 7; do
+    touch -d "2020-01-0$i" "$REPO/backups/data-2020010$i-000000-v1.0.$i.db" 2>/dev/null \
+        || touch "$REPO/backups/data-2020010$i-000000-v1.0.$i.db"
+done
+run_updater
+check "five backups left" bash -c "[ \$(ls '$REPO'/backups/data-*.db | wc -l) -eq 5 ]"
+
+echo
+if [ "$FAILS" -eq 0 ]; then echo "ALL PASSED"; else echo "$FAILS FAILED"; exit 1; fi

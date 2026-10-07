@@ -1,0 +1,588 @@
+use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+
+use super::gate::RuleGate;
+use super::limiter::RateLimit;
+use super::selector::TargetSelector;
+use crate::reporter::{ConnectionTracker, TrafficCounter};
+
+/// v1.2.0: how often the "rule is at its connection cap" warning may be logged
+/// per listener. A rule sitting at its cap rejects on EVERY accept, so an
+/// unthrottled warn! here would itself become the outage (disk + CPU) that the
+/// cap exists to prevent.
+const CAP_WARN_INTERVAL: Duration = Duration::from_secs(60);
+
+/// v1.0.4: serve an ALREADY-BOUND TcpListener. Binding happens in the manager
+/// (synchronously, so errors surface immediately and per-family success is
+/// known). This function only runs the accept loop.
+///
+/// v1.2.0: `gate` carries the rule's connection cap and its restart
+/// cancellation. It is cloned from the rule's `RuleRuntime`, so the rule's IPv4
+/// and IPv6 listeners share one connection budget and one cancel signal.
+#[allow(clippy::too_many_arguments)]
+pub async fn serve_tcp_listener(
+    listener: TcpListener,
+    targets: Vec<String>,
+    selector: Arc<TargetSelector>,
+    rate_limit: RateLimit,
+    counter: Arc<TrafficCounter>,
+    connections: Arc<ConnectionTracker>,
+    rule_id: i64,
+    source_ipv4: Option<Ipv4Addr>,
+    gate: RuleGate,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let listen_addr = listener
+        .local_addr()
+        .unwrap_or_else(|_| SocketAddr::from(([0, 0, 0, 0], 0)));
+    tracing::info!("TCP listening on {} (rule {})", listen_addr, rule_id);
+
+    // v0.3.6: accept-loop resilience. A transient accept error (EMFILE,
+    // ENOMEM, temporary resource exhaustion) used to `?`-propagate and kill the
+    // whole listener task, leaving the port dead until node restart. Now we
+    // classify the error: transient -> back off and retry; the listener stays
+    // up. A non-transient error (e.g. the listener was closed) ends the task.
+    let mut last_cap_warn: Option<std::time::Instant> = None;
+    loop {
+        match listener.accept().await {
+            Ok((inbound, client_addr)) => {
+                // v1.2.0: admit against the rule's connection cap BEFORE doing
+                // any further work. `admit` is called here, in the sequential
+                // accept loop, rather than inside the spawned task below — if the
+                // count were incremented in the task, an inbound flood would let
+                // an unbounded number of accepts through before the first
+                // increment landed, which is exactly the case the cap is for.
+                let Some(conn_guard) = gate.admit() else {
+                    // At cap: close immediately. We accept-then-drop rather than
+                    // stop accepting, because leaving connections in the kernel's
+                    // backlog would stall the queue and make the client hang
+                    // instead of failing fast and retrying elsewhere.
+                    drop(inbound);
+                    let now = std::time::Instant::now();
+                    if last_cap_warn.is_none_or(|t| now.duration_since(t) >= CAP_WARN_INTERVAL) {
+                        last_cap_warn = Some(now);
+                        tracing::warn!(
+                            "TCP rule {}: at connection cap ({} live / {} max), rejecting new \
+                             connections (latest from {}); rate-limited to once per {}s",
+                            rule_id,
+                            gate.live(),
+                            gate.max_connections.unwrap_or(0),
+                            client_addr,
+                            CAP_WARN_INTERVAL.as_secs()
+                        );
+                    }
+                    continue;
+                };
+                // v1.0.8: disable Nagle on the accepted (client-facing) socket.
+                // See the note in outbound::tcp_connect — a relay MUST set
+                // TCP_NODELAY on both ends or small packets get buffered ~40ms
+                // per hop, which compounds into heavy jitter on long chains.
+                if let Err(e) = inbound.set_nodelay(true) {
+                    tracing::debug!(
+                        "TCP accept {}: set_nodelay(true) failed: {}",
+                        client_addr,
+                        e
+                    );
+                }
+                // v1.2: enable TCP keepalive so a client that vanishes without a
+                // FIN/RST (NAT rebind, mobile handoff, cable pull) is reaped by
+                // the kernel instead of leaving the copy task blocked on read()
+                // forever, holding two fds until the node exhausts them (EMFILE).
+                super::outbound::apply_keepalive(&inbound, "TCP accept");
+                let targets = targets.clone();
+                let selector = selector.clone();
+                let rate_limit = rate_limit.clone();
+                let counter = counter.clone();
+                let connections = connections.clone();
+                let mut gate = gate.clone();
+
+                tokio::spawn(async move {
+                    // RAII guard: increments the active-TCP count on create,
+                    // decrements on drop (end of task — normal close, error, or
+                    // panic). Guarantees the count is correct even on abrupt close.
+                    let _guard = connections.tcp_handle();
+                    // v1.2.0: holds this connection's slot in the rule's cap;
+                    // drops with the task however it ends, including when the
+                    // select! below takes the cancellation branch.
+                    let _conn_guard = conn_guard;
+                    // v1.2.0: this task is DETACHED — aborting the accept loop
+                    // does not stop it (verified: an established connection keeps
+                    // forwarding after the listener task is aborted). So a rule
+                    // restart cannot work by killing the listener; it fires this
+                    // cancellation instead, and dropping the handle_tcp_connection
+                    // future here closes both sockets.
+                    tokio::select! {
+                        _ = gate.cancelled() => {
+                            tracing::debug!(
+                                "TCP rule {}: dropping connection from {} (rule restarted)",
+                                rule_id,
+                                client_addr
+                            );
+                        }
+                        r = handle_tcp_connection(
+                            inbound,
+                            client_addr,
+                            targets,
+                            selector,
+                            rate_limit,
+                            counter,
+                            rule_id,
+                            source_ipv4,
+                        ) => {
+                            if let Err(e) = r {
+                                tracing::debug!("TCP connection error: {}", e);
+                            }
+                        }
+                    }
+                });
+            }
+            Err(e) if is_transient_accept_error(&e) => {
+                // Back off briefly to avoid a hot error loop spamming logs, then
+                // continue accepting. 100ms is short enough that real clients
+                // don't notice but long enough to shed an error storm.
+                tracing::warn!(
+                    "TCP listener on {} (rule {}): transient accept error: {}; retrying in 100ms",
+                    listen_addr,
+                    rule_id,
+                    e
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(e) => {
+                // Non-transient (e.g. listener closed, EBADF). End the task; the
+                // manager's is_finished recovery will restart it on next config
+                // if still desired.
+                return Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>);
+            }
+        }
+    }
+}
+
+/// Classify whether an `accept` error is worth retrying. Transient OS-level
+/// resource exhaustion (too many open files, out of memory) clears on its own;
+/// retrying is the right call. A bad-fd or closed-listener error is permanent.
+fn is_transient_accept_error(e: &std::io::Error) -> bool {
+    use std::io::ErrorKind;
+    matches!(
+        e.kind(),
+        ErrorKind::Interrupted
+            | ErrorKind::WouldBlock
+            | ErrorKind::TimedOut
+            | ErrorKind::ResourceBusy
+    ) || e.raw_os_error().is_some_and(|c| {
+        // EMFILE (24) / ENFILE (23) / ENOBUFS (105) / ENOMEM (12): transient
+        // resource exhaustion under load.
+        matches!(c, 24 | 23 | 105 | 12)
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_tcp_connection(
+    inbound: TcpStream,
+    client_addr: SocketAddr,
+    targets: Vec<String>,
+    selector: Arc<TargetSelector>,
+    rate_limit: RateLimit,
+    counter: Arc<TrafficCounter>,
+    rule_id: i64,
+    source_ipv4: Option<Ipv4Addr>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // v0.4.6: pick targets per the rule's load-balancing strategy. The selector
+    // returns the ordered indices to attempt; we connect to the first reachable.
+    //
+    // v1.0.5: keep the REAL reason each target failed (DNS / timeout / no route /
+    // source-bind) instead of collapsing everything into "no target available".
+    // On a multi-NIC server a silent failure is impossible to diagnose, so we
+    // accumulate per-target reasons and log them together when nothing connects.
+    let mut outbound = None;
+    let mut failures: Vec<String> = Vec::new();
+    for idx in selector.order() {
+        let Some(target) = targets.get(idx) else {
+            continue;
+        };
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            super::outbound::tcp_connect(target, source_ipv4, 5),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => {
+                selector.report(idx, true);
+                outbound = Some(stream);
+                break;
+            }
+            Ok(Err(e)) => {
+                // tcp_connect already classifies the cause (InvalidIp / Connect /
+                // Bind). Preserve it verbatim so DNS vs. refused vs. source-bind
+                // failures are distinguishable in the log.
+                selector.report(idx, false);
+                failures.push(format!("{} -> {}", target, e));
+            }
+            Err(_) => {
+                // Outer timeout fired: the connect didn't finish within 5s.
+                selector.report(idx, false);
+                failures.push(format!("{} -> timed out after 5s", target));
+            }
+        }
+    }
+
+    let outbound = match outbound {
+        Some(s) => s,
+        None => {
+            let detail = if failures.is_empty() {
+                "no reachable target (all targets in circuit-break or empty)".to_string()
+            } else {
+                failures.join("; ")
+            };
+            tracing::warn!(
+                "TCP rule {}: no target available for client {} — {}",
+                rule_id,
+                client_addr,
+                detail
+            );
+            return Err(format!("no target available: {}", detail).into());
+        }
+    };
+
+    tracing::debug!("TCP: {} -> {}", client_addr, outbound.peer_addr()?);
+
+    // v1.0.8: ZERO-COPY fast path. An UNLIMITED rule on Linux is forwarded with
+    // splice(2) — bytes move inside the kernel via a pipe and are never copied
+    // into userspace, which slashes CPU on high-throughput links. A rate-limited
+    // rule CANNOT use splice (the bytes must reach userspace to be throttled),
+    // but that's fine: a capped rule isn't running at max throughput, so the
+    // userspace copy's CPU cost is negligible. Byte counts still come back from
+    // the splice return values, so billing is unaffected. Non-Linux always uses
+    // the userspace copy below.
+    // v1.2.3: one handle per connection, taken BEFORE the copy starts. Both
+    // paths below report through it on every chunk, so a connection's bytes are
+    // billable while it is still open. They used to be summed into a local and
+    // submitted once at close, which meant a persistent connection moved
+    // unlimited traffic without ever touching its owner's quota.
+    let bytes = counter.handle(rule_id).await;
+
+    #[cfg(target_os = "linux")]
+    if matches!(rate_limit, RateLimit::Unlimited) {
+        // (up = client→target, down = target→client) — the same attribution the
+        // userspace path uses below.
+        let up_sink = bytes.clone();
+        let down_sink = bytes.clone();
+        if let Err(e) = super::splice::zero_copy_bidirectional(
+            inbound,
+            outbound,
+            move |n| up_sink.add_upload(n),
+            move |n| down_sink.add_download(n),
+        )
+        .await
+        {
+            tracing::debug!("TCP splice forward (rule {}): {}", rule_id, e);
+        }
+        return Ok(());
+    }
+
+    // Userspace bidirectional copy with traffic counting + per-rule rate
+    // limiting (the rate-limited path, and the fallback on non-Linux). We own
+    // both halves and pump both directions concurrently. When either side
+    // returns (the remote closed the connection) we shut down the matching write
+    // half so the other copy also sees EOF and returns.
+    //
+    // v0.4.6: each chunk is throttled through the shared RateLimit BEFORE being
+    // written, so the rule's aggregate cap holds across all connections.
+    let (mut ri, mut wi) = inbound.into_split();
+    let (mut ro, mut wo) = outbound.into_split();
+
+    let counter_up = bytes.clone();
+    let counter_down = bytes;
+    let rl_up = rate_limit.clone();
+    let rl_down = rate_limit;
+
+    let upload = Box::pin(async move {
+        // v1.0.8: 32 KiB copy buffer (this userspace path is only used by
+        // rate-limited rules, which are capped anyway; the unlimited fast path
+        // uses splice above). Heap-allocated as part of this Box::pin'd future,
+        // so it does not grow the task stack.
+        let mut buf = [0u8; 32 * 1024];
+        loop {
+            let n = match ri.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            rl_up.acquire_upload(n as u64).await;
+            if wo.write_all(&buf[..n]).await.is_err() {
+                break;
+            }
+            counter_up.add_upload(n as u64);
+        }
+        let _ = wo.shutdown().await;
+    });
+    let download = Box::pin(async move {
+        // v1.0.8: 32 KiB copy buffer (see the upload side above).
+        let mut buf = [0u8; 32 * 1024];
+        loop {
+            let n = match ro.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            rl_down.acquire_download(n as u64).await;
+            if wi.write_all(&buf[..n]).await.is_err() {
+                break;
+            }
+            counter_down.add_download(n as u64);
+        }
+        let _ = wi.shutdown().await;
+    });
+
+    let ((), ()) = tokio::join!(upload, download);
+
+    tracing::debug!("TCP: connection closed for {}", client_addr);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::forwarder::outbound::bind_tcp_listener;
+    use relay_shared::protocol::LoadBalanceStrategy;
+    use std::net::IpAddr;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    /// v1.0.8: end-to-end raw TCP forwarding still works after the NODELAY /
+    /// 64 KiB buffer changes, and the client-facing socket has Nagle disabled.
+    /// Topology: client → [serve_tcp_listener] → echo target.
+    #[tokio::test]
+    async fn raw_tcp_forward_roundtrips_and_client_has_nodelay() {
+        // Echo target: read a chunk, write it straight back.
+        let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target_addr = target.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut s, _)) = target.accept().await {
+                let mut b = vec![0u8; 1024];
+                if let Ok(n) = s.read(&mut b).await {
+                    let _ = s.write_all(&b[..n]).await;
+                }
+            }
+        });
+
+        // Relay listener on an ephemeral port, forwarding to the echo target.
+        let listener = bind_tcp_listener(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).unwrap();
+        let listen_addr = listener.local_addr().unwrap();
+        let selector = Arc::new(TargetSelector::new(LoadBalanceStrategy::First, 1));
+        let counter = Arc::new(TrafficCounter::new());
+        let connections = Arc::new(ConnectionTracker::new());
+        let runtime = crate::forwarder::gate::RuleRuntime::new();
+        tokio::spawn(serve_tcp_listener(
+            listener,
+            vec![target_addr.to_string()],
+            selector,
+            RateLimit::Unlimited,
+            counter.clone(),
+            connections,
+            1,
+            None,
+            runtime.gate(None),
+        ));
+        // Keep the runtime alive for the duration of the test: dropping it would
+        // cancel the connection we are about to make.
+        let _runtime = runtime;
+
+        // Client connects to the relay and round-trips through to the echo.
+        let mut client = TcpStream::connect(listen_addr).await.unwrap();
+        // The client's own socket having NODELAY isn't what we set (we set it on
+        // the RELAY's accepted socket), but we can at least prove the relay path
+        // forwards bytes correctly under the new buffer/nodelay code.
+        client.write_all(b"ping-through-relay").await.unwrap();
+        let mut got = vec![0u8; 64];
+        let n = client.read(&mut got).await.unwrap();
+        assert_eq!(
+            &got[..n],
+            b"ping-through-relay",
+            "relay must echo the target"
+        );
+    }
+
+    /// v1.2.3: a connection's bytes must be billable WHILE IT IS STILL OPEN.
+    ///
+    /// Both copy paths used to sum into a local and submit once the connection
+    /// closed, so a persistent connection contributed nothing to its rule's
+    /// usage for as long as it stayed up. A tunnel could move any amount of
+    /// traffic while the owner's quota read zero, and the panel — which stops
+    /// forwarding on reported usage — never had a reason to stop it. The bytes
+    /// landed only at close, potentially long after the user stopped paying.
+    ///
+    /// The target here deliberately stays open after echoing, and the client
+    /// never closes: the counter must already hold the traffic.
+    #[tokio::test]
+    async fn traffic_is_counted_while_the_connection_is_still_open() {
+        // Unlimited: on Linux this is the splice path.
+        assert_counts_before_close(RateLimit::Unlimited, 7).await;
+    }
+
+    /// The same contract on the OTHER forwarding path.
+    ///
+    /// On Linux an unlimited rule takes splice, so the test above never
+    /// exercises the userspace copy there — and Linux is what CI runs. A
+    /// rate-limited rule cannot use splice (bytes must reach userspace to be
+    /// throttled), so this covers the copy loop on every platform.
+    #[tokio::test]
+    async fn traffic_is_counted_while_open_on_the_rate_limited_path() {
+        // A cap high enough not to slow the test, low enough to be Limited.
+        assert_counts_before_close(RateLimit::new(Some(100_000_000), Some(100_000_000)), 8).await;
+    }
+
+    async fn assert_counts_before_close(rate_limit: RateLimit, rule_id: i64) {
+        let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target_addr = target.local_addr().unwrap();
+        // Echo once, then HOLD the connection open (no shutdown, no drop).
+        let target_task = tokio::spawn(async move {
+            if let Ok((mut s, _)) = target.accept().await {
+                let mut b = vec![0u8; 1024];
+                if let Ok(n) = s.read(&mut b).await {
+                    let _ = s.write_all(&b[..n]).await;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                drop(s);
+            }
+        });
+
+        let listener = bind_tcp_listener(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).unwrap();
+        let listen_addr = listener.local_addr().unwrap();
+        let selector = Arc::new(TargetSelector::new(LoadBalanceStrategy::First, 1));
+        let counter = Arc::new(TrafficCounter::new());
+        let connections = Arc::new(ConnectionTracker::new());
+        let runtime = crate::forwarder::gate::RuleRuntime::new();
+        tokio::spawn(serve_tcp_listener(
+            listener,
+            vec![target_addr.to_string()],
+            selector,
+            rate_limit,
+            counter.clone(),
+            connections,
+            rule_id,
+            None,
+            runtime.gate(None),
+        ));
+        let _runtime = runtime;
+
+        let mut client = TcpStream::connect(listen_addr).await.unwrap();
+        let payload = b"bytes-that-must-be-billed-before-close";
+        client.write_all(payload).await.unwrap();
+        let mut got = vec![0u8; 64];
+        let n = client.read(&mut got).await.unwrap();
+        assert_eq!(&got[..n], payload, "relay must echo the target");
+
+        // The connection is STILL OPEN here — neither side has closed. Poll the
+        // counter briefly: the copy tasks report from a separate task, so allow
+        // a moment for the scheduler without allowing "eventually at close".
+        let mut seen = None;
+        for _ in 0..50 {
+            let snap = counter.snapshot().await;
+            if let Some(e) = snap.entries.iter().find(|e| e.rule_id == rule_id) {
+                if e.upload > 0 && e.download > 0 {
+                    seen = Some((e.upload, e.download));
+                    break;
+                }
+            }
+            drop(snap);
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+
+        let (up, down) = seen.expect(
+            "traffic must be counted while the connection is open, not only when it closes",
+        );
+        assert_eq!(up, payload.len() as u64, "upload = client bytes forwarded");
+        assert_eq!(down, payload.len() as u64, "download = echoed bytes back");
+
+        target_task.abort();
+    }
+
+    /// v1.2.0: the cap is enforced at accept. Connections up to the cap forward
+    /// normally; the one over it is closed immediately rather than queued, so a
+    /// client fails fast instead of hanging.
+    #[tokio::test]
+    async fn accept_loop_rejects_over_the_connection_cap() {
+        // Echo target that serves many connections concurrently.
+        let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target_addr = target.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut s, _)) = target.accept().await else {
+                    return;
+                };
+                tokio::spawn(async move {
+                    let mut b = [0u8; 64];
+                    loop {
+                        match s.read(&mut b).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => {
+                                if s.write_all(&b[..n]).await.is_err() {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        let listener = bind_tcp_listener(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).unwrap();
+        let listen_addr = listener.local_addr().unwrap();
+        let runtime = crate::forwarder::gate::RuleRuntime::new();
+        tokio::spawn(serve_tcp_listener(
+            listener,
+            vec![target_addr.to_string()],
+            Arc::new(TargetSelector::new(LoadBalanceStrategy::First, 1)),
+            RateLimit::Unlimited,
+            Arc::new(TrafficCounter::new()),
+            Arc::new(ConnectionTracker::new()),
+            1,
+            None,
+            runtime.gate(Some(2)),
+        ));
+        let _runtime = runtime;
+
+        // Two connections fit under the cap and must both forward.
+        let mut a = TcpStream::connect(listen_addr).await.unwrap();
+        a.write_all(b"a").await.unwrap();
+        let mut buf = [0u8; 16];
+        assert_eq!(a.read(&mut buf).await.unwrap(), 1, "conn 1 must forward");
+
+        let mut b = TcpStream::connect(listen_addr).await.unwrap();
+        b.write_all(b"b").await.unwrap();
+        assert_eq!(b.read(&mut buf).await.unwrap(), 1, "conn 2 must forward");
+
+        // The third is over the cap. The TCP handshake still completes (the
+        // kernel accepts it, then we close), so the rejection shows up as EOF on
+        // read rather than a connect error.
+        let mut c = TcpStream::connect(listen_addr).await.unwrap();
+        let _ = c.write_all(b"c").await;
+        match tokio::time::timeout(Duration::from_secs(2), c.read(&mut buf)).await {
+            Ok(Ok(0)) | Ok(Err(_)) => {}
+            Ok(Ok(n)) => panic!(
+                "over-cap connection was served — echoed {:?}",
+                String::from_utf8_lossy(&buf[..n])
+            ),
+            Err(_) => panic!("over-cap connection hung instead of being closed"),
+        }
+
+        // Closing one frees its slot, and a new connection is admitted again.
+        drop(a);
+        // Give the closed connection's task a moment to drop its guard.
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let mut d = TcpStream::connect(listen_addr).await.unwrap();
+            if d.write_all(b"d").await.is_ok() {
+                if let Ok(Ok(1)) =
+                    tokio::time::timeout(Duration::from_millis(200), d.read(&mut buf)).await
+                {
+                    return; // slot was freed and reused — done.
+                }
+            }
+        }
+        panic!("a freed slot was never reused — the guard did not release the cap");
+    }
+}

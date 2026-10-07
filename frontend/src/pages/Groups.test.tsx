@@ -1,0 +1,205 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+const { mockGet, mockPost, mockPut, mockDelete } = vi.hoisted(() => ({
+  mockGet: vi.fn(), mockPost: vi.fn(), mockPut: vi.fn(), mockDelete: vi.fn(),
+}));
+vi.mock('../api/client', () => ({
+  default: { get: mockGet, post: mockPost, put: mockPut, delete: mockDelete },
+}));
+const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
+vi.mock('../auth/useAuth', () => ({ useAuth: mockUseAuth }));
+
+import Groups from './Groups';
+
+const ok = <T,>(data: T) => ({ code: 0, message: 'ok', data });
+
+function group(over: Record<string, unknown> = {}) {
+  return {
+    id: 1, name: 'g1', group_type: 'in', token: 'tok-'.padEnd(36, 'x'), uid: 1,
+    connect_host: '1.2.3.4', port_range: '10000-65535', rate: 1.0, hidden: false,
+    ...over,
+  };
+}
+
+beforeEach(() => {
+  mockGet.mockReset();
+  mockPost.mockReset();
+  mockPut.mockReset();
+  mockUseAuth.mockReset();
+  mockUseAuth.mockReturnValue({ isAdmin: true });
+  mockGet.mockImplementation((url: string) => {
+    if (url === '/groups') return Promise.resolve(ok([group()]));
+    return Promise.resolve(ok([]));
+  });
+});
+
+// ── A failed read reports `code: 500` with `data: null` inside a 200 response,
+// so the axios success path runs. Rendering that as an empty table would tell
+// an operator their groups are gone, and invite them to recreate groups that
+// still exist.
+describe('a database error is not an empty group list', () => {
+  it('shows a load failure instead of an empty table', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/groups') {
+        return Promise.resolve({ code: 500, message: '数据库错误', data: null });
+      }
+      return Promise.resolve(ok([]));
+    });
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('loadFailed')).toBeInTheDocument());
+    expect(screen.getByText('loadFailedRetry')).toBeInTheDocument();
+  });
+
+  it('shows a load failure when the request itself rejects', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/groups') return Promise.reject(new Error('network down'));
+      return Promise.resolve(ok([]));
+    });
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('loadFailed')).toBeInTheDocument());
+  });
+
+  it('shows no failure banner on a healthy read', async () => {
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('g1')).toBeInTheDocument());
+    expect(screen.queryByText('loadFailed')).toBeNull();
+  });
+});
+
+// ── v1.2.5: a monitor-only group forwards nothing and never reaches a regular
+// user, so connect host / port range / rate / hidden are inert on it. The forms
+// stop asking for them, and nothing inert gets written to the DB.
+describe('monitor-only groups hide the forwarding fields', () => {
+  it('drops the forwarding fields from the create form when the type is monitor', async () => {
+    const user = userEvent.setup();
+    render(<Groups />);
+    await user.click(screen.getByRole('button', { name: /addGroup/i }));
+
+    // Inbound is the default: the fields are there to begin with.
+    await waitFor(() => expect(screen.getByLabelText('connectHost')).toBeInTheDocument());
+    expect(screen.getByLabelText('portRange')).toBeInTheDocument();
+
+    // Switch to monitor-only.
+    await user.click(screen.getByLabelText('type'));
+    await user.click(await screen.findByTitle('typeMonitor'));
+
+    await waitFor(() => expect(screen.queryByLabelText('connectHost')).toBeNull());
+    expect(screen.queryByLabelText('portRange')).toBeNull();
+    expect(screen.queryByLabelText('rate')).toBeNull();
+    expect(screen.getByText('monitorOnlyNoForwardTitle')).toBeInTheDocument();
+  });
+
+  it('sends empty forwarding fields rather than omitting them', async () => {
+    // Hiding the Form.Items unregisters them, so they vanish from the submitted
+    // values — and CreateGroupRequest declares connect_host/port_range as plain
+    // String with no serde default, which turns an omission into a 422. The
+    // explicit empty string is what makes creating a monitor group work at all;
+    // it also guarantees a host typed before the switch is not carried over.
+    const user = userEvent.setup();
+    mockPost.mockResolvedValue(ok(group({ group_type: 'monitor' })));
+    render(<Groups />);
+    await user.click(screen.getByRole('button', { name: /addGroup/i }));
+
+    await user.type(await screen.findByLabelText('name'), 'watch-only');
+    await user.type(screen.getByLabelText('connectHost'), '9.9.9.9');
+
+    await user.click(screen.getByLabelText('type'));
+    await user.click(await screen.findByTitle('typeMonitor'));
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    const [url, body] = mockPost.mock.calls[0];
+    expect(url).toBe('/groups');
+    expect(body).toMatchObject({
+      group_type: 'monitor', connect_host: '', port_range: '', rate: 1.0, hidden: false,
+    });
+  });
+
+  it('leaves the stored forwarding fields alone when converting a group to monitor', async () => {
+    // Wiping them would destroy what you need to convert the group back, and
+    // flipping the type to look at something has to be a safe round trip.
+    const user = userEvent.setup();
+    mockPut.mockResolvedValue(ok(null));
+    render(<Groups />);
+
+    await user.click(await screen.findByRole('button', { name: /edit/i }));
+    await user.click(await screen.findByLabelText('type'));
+    await user.click(await screen.findByTitle('typeMonitor'));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(mockPut).toHaveBeenCalled());
+    const [, body] = mockPut.mock.calls[0];
+    expect(body).toEqual({ group_type: 'monitor' });
+    expect(body).not.toHaveProperty('connect_host');
+    expect(body).not.toHaveProperty('port_range');
+  });
+
+  it('shows the type as a readable label, not the wire value', async () => {
+    // The column rendered `group_type.toUpperCase()`, so an otherwise Chinese
+    // page showed "IN" / "MONITOR". It now reuses the picker's own strings.
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/groups') {
+        return Promise.resolve(ok([group({ id: 1 }), group({ id: 4, name: 'm', group_type: 'monitor' })]));
+      }
+      return Promise.resolve(ok([]));
+    });
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('inboundListener')).toBeInTheDocument());
+    expect(screen.getByText('typeMonitor')).toBeInTheDocument();
+    expect(screen.queryByText('IN')).toBeNull();
+    expect(screen.queryByText('MONITOR')).toBeNull();
+  });
+
+  it('falls back to the raw type when no label exists for it', async () => {
+    // A legacy or newly added type must still read, rather than rendering an
+    // empty tag.
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/groups') return Promise.resolve(ok([group({ group_type: 'chained_outbound' })]));
+      return Promise.resolve(ok([]));
+    });
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('chained_outbound')).toBeInTheDocument());
+  });
+
+  it('shows a dash instead of an inert port range on a monitor row', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/groups') {
+        return Promise.resolve(ok([group({ group_type: 'monitor', port_range: '10000-65535', connect_host: '1.2.3.4' })]));
+      }
+      return Promise.resolve(ok([]));
+    });
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('g1')).toBeInTheDocument());
+    expect(screen.queryByText('10000-65535')).toBeNull();
+    expect(screen.queryByText('1.2.3.4')).toBeNull();
+  });
+});
+
+// ── v1.2.12: the API answers "still in use" with HTTP 200 + code 409. The old
+// handler only looked for an HTTP error, so it announced the group as deleted
+// while it was still there.
+describe('deleting a group', () => {
+  async function confirmDelete() {
+    const user = userEvent.setup();
+    render(<Groups />);
+    await waitFor(() => expect(screen.getByText('g1')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'delete' }));
+    const pop = (await screen.findByText('deleteGroupConfirm')).closest('.ant-popover') as HTMLElement;
+    await user.click(within(pop).getByRole('button', { name: /ok/i }));
+  }
+
+  it('shows the in-use refusal instead of claiming success', async () => {
+    mockDelete.mockResolvedValue({ code: 409, message: '该分组仍被 3 条规则使用，请先迁移规则。', data: null });
+    await confirmDelete();
+    expect(await screen.findByText('该分组仍被 3 条规则使用，请先迁移规则。')).toBeInTheDocument();
+    expect(screen.queryByText('groupDeleted')).toBeNull();
+  });
+
+  it('confirms a real deletion', async () => {
+    mockDelete.mockResolvedValue(ok(null));
+    await confirmDelete();
+    expect(await screen.findByText('groupDeleted')).toBeInTheDocument();
+  });
+});

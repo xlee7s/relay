@@ -1,0 +1,416 @@
+# Changelog — relay-node
+
+All notable changes to the **relay-node** binary are documented here. This is a
+SEPARATE changelog from `CHANGELOG.md` (which covers the panel + cross-cutting
+features): panel and node release on independent version tracks (`node-vX.Y.Z`
+tags vs panel `vX.Y.Z` tags), so each has its own history. A node release's
+GitHub Release body is extracted from this file by
+`scripts/extract-changelog.sh <version> CHANGELOG-NODE.md`.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/).
+
+---
+
+## [1.2.6] - 2026-10-04
+
+Runs against any current panel (still protocol version 4). Traffic reports now
+carry a batch id, which panel 1.2.12+ uses to bill a re-sent report once; older
+panels ignore it.
+
+Worth taking on nodes with a shaky link to the panel: a stuck control-channel
+handshake now retries on its own, and an unanswered report no longer stalls
+the node. Nodes installed with `-s <name>` should re-run their install command
+once, to get the corrected `start.sh`.
+
+### Fixed
+
+- **A WebSocket handshake that never answers no longer stalls the control
+  channel forever.** The connect step — TCP, TLS and HTTP upgrade — had no
+  timeout. The heartbeat protects a connection only once it is established, so
+  when a middlebox accepted the TCP connection and then dropped everything, the
+  node waited on the handshake indefinitely: nothing logged, nothing retried.
+  One node spent five days that way, forwarding and reporting normally over
+  HTTP while unreachable for remote upgrade. The handshake now gives up after
+  15 s, logs why, and retries on the normal backoff.
+
+- **Status and diagnosis reports can no longer hang the node.** Neither HTTP
+  call had a timeout, and the status report runs in the main report loop: one
+  unanswered request would have stopped the node reporting altogether. Both
+  now give up after 15 s. (Traffic reports get a timeout together with
+  re-send deduplication, which is what makes giving up on one safe.)
+
+- **UDP sessions no longer leak.** When an idle UDP session expired, only its
+  table entry was dropped: the task reading the target's replies kept the
+  session's socket and waited forever if the target never answered again. On
+  a busy UDP rule this piled up one task and one file descriptor per idle
+  client until the node ran out of descriptors. Expiring a session now stops
+  its reader at once — also while it is waiting on the rule's rate limit, when
+  it used to hold on until the wait ended and then still forward the reply —
+  and removing or restarting a UDP rule releases all of its sessions (and the
+  rule's cleanup task, which also used to live on).
+
+- **A late error on an expired UDP session could cut off the client's new
+  one.** The old session's reader removed "the session for this client" when
+  its socket failed — by then possibly the replacement session. It now only
+  removes its own.
+
+- **Nodes installed with `-s <name>` ran from the default instance's
+  directory.** The generated `start.sh` always changed into `/opt/relay-node`
+  and read its `relay-node.env`, and the node kept its id and config cache
+  there whenever that directory existed — so a second instance on the same
+  host shared the first one's node id and showed up as the same node. Each
+  instance now uses its own `/opt/<name>`. Re-run the install command for the
+  instance to get the new `start.sh`; the default `relay-node` instance keeps
+  its files where they are.
+
+- **A traffic report the panel did not answer is re-sent unchanged, so it is
+  never billed twice.** A report that got no definite answer (timeout, dropped
+  connection, proxy error) used to be folded into the next report, with a new
+  snapshot — and if the panel had in fact recorded it, those bytes were billed
+  twice. Now the node sends the same batch again, with the same id and bytes,
+  until the panel answers; the panel (1.2.12+) recognises a batch it already
+  applied and acknowledges it without billing. Traffic counted meanwhile waits
+  for the next batch, so a panel that is unreachable for a while delays
+  billing but loses nothing. Only a refusal the panel gives before writing
+  anything (400/401/403) sends the bytes again in a fresh batch; a 500 can
+  come after the commit went through, so it is re-sent under the same id too.
+  Each batch also names the previous, acknowledged one, so the panel can
+  stop keeping it for long. With an older panel the id is ignored and reports
+  behave as before.
+
+- **A traffic report gives up after 30 seconds.** It had no time limit, and it
+  runs in the same loop as the config poll: a request left hanging (a
+  half-open connection, a panel stuck on a database lock) stopped config
+  updates and all later reports with it. The batch is re-sent afterwards
+  under the same id, so giving up never bills twice.
+
+- **Pausing and resuming a rule while a report is in doubt no longer stops
+  the node's billing.** Settling the report subtracted its bytes from the
+  rule's new counter instead of the one they were read from, wrapping it to
+  about 2^64; the panel refused that value, and with it every later report
+  from the node, until the node restarted. A report is now settled against
+  the counters it was read from.
+
+### Security
+
+- **A flood of forged UDP sources can no longer take the node down.** Every
+  new UDP source address opened a socket that stayed open for 60 idle seconds,
+  with no limit, so spoofed packets could use up the node's file descriptors —
+  after which every rule, TCP included, stopped working while the node still
+  showed as online. New UDP sessions are now limited node-wide to half the
+  file-descriptor limit (32768 with the installer's service settings); beyond
+  that new sessions are refused, existing ones carry on, and the log warns at
+  most once a minute. Set `UDP_MAX_SESSIONS` in `relay-node.env` for very busy
+  UDP forwarding. Refused packets also no longer add entries to the
+  connection count.
+
+- **The installer no longer pastes `-u` / `-t` into `start.sh` unescaped.**
+  The values were inserted with `sed`, so a URL or token containing `$(...)`
+  would run on every node start, and a `|` or `&` produced a broken file. The
+  token, panel URL and service name are now validated, and `start.sh` is
+  written with proper shell quoting. The values come from the install command
+  the operator pastes, so this was not reachable remotely.
+
+## [1.2.5] - 2026-09-27
+
+Nothing on the wire changed (still protocol version 4), so this node runs
+against any current panel; panel 1.2.11+ is what shows its live rate.
+
+Worth taking if you bill by traffic: from this version on, a restart no longer
+drops the traffic counted since the last report. The upgrade TO 1.2.5 is still
+performed by the old binary and exits the old way — the graceful path applies
+from the next restart onward.
+
+### Added
+
+- **Graceful shutdown.** On SIGTERM (`systemctl stop` / `restart`), Ctrl+C, or
+  after a one-click upgrade, the node now stops accepting, reports the traffic
+  counted so far, gives open TCP connections up to `SHUTDOWN_DRAIN_SECS`
+  (default 5, max 60, 0 = no wait) to finish — exiting the moment the last one
+  closes — reports again, and exits 0.
+
+  What this fixes, first of all, is billing. Every restart used to throw away
+  whatever had been counted since the last report — up to 10 s of forwarded
+  traffic, never charged. That is gone.
+
+  What it does NOT do is keep a long-lived connection alive across a restart.
+  A tunnel or VPN still open when the window ends is cut, exactly as before;
+  the process holding it is the one exiting. And new connections are refused
+  during the window, on top of systemd's `RestartSec` — which is why it is
+  short and ends early when nothing is open.
+
+- **Live NIC rate over the WebSocket**, every 2 s, for panel 1.2.11+'s
+  node-status page. Sampled on its own baseline so the status report's 10 s
+  figure is unaffected. An older panel ignores the frames.
+
+### Fixed
+
+- **Two traffic reports can no longer run at once.** A report snapshots the
+  counters, uploads, and only then subtracts what the panel acknowledged. Two
+  in flight together would both upload the same bytes — billed twice — and then
+  both subtract them, wrapping the counter to an enormous value that the next
+  report billed again. The regular loop never overlapped itself, so this had
+  not happened; the shutdown flush is a second caller that can, so reports are
+  now serialized.
+
+### Removed
+
+- **The installer's TLS Simple remnants.** The example `relay-node.env` still
+  explained how to "enable TLS Simple ingress", and the installer created
+  `/opt/relay-node/certs` for the certificate. That ingress was retired in
+  1.0.8 — the forwarder skips WS/TLS listeners, and panel 1.2.9+ refuses to
+  save such a rule — so those instructions could only produce a port that never
+  listens. Existing nodes keep their files; the installer never rewrites an
+  existing env file.
+
+## [1.2.4] - 2026-09-08
+
+Node only. Nothing on the wire changed (still protocol version 4), so this node
+runs against any current panel — but the panel only records what it reports
+from **1.2.9** onward.
+
+Worth taking if you use the one-click remote upgrade.
+
+### Added
+
+- **A failed self-upgrade is reported to the panel instead of only the local
+  log.** Everything that can go wrong in an upgrade goes wrong here — the
+  download (routinely, where GitHub is unreachable), the sha256 check, the
+  backup, the swap — and every one of those errors used to end at
+  `tracing::error!` on a machine nobody is watching. The panel had sent the
+  command and heard nothing since, so it could not tell a failed upgrade from a
+  slow one, and said so in the audit log for want of anything better.
+
+  The node now POSTs the reason to `/api/v1/node/upgrade_result`, authenticated
+  with its existing node token.
+
+  Only failures are reported, and the asymmetry is forced rather than chosen: a
+  successful upgrade ends by exiting so the supervisor re-execs the new binary,
+  so there is no process left to send a success — and none is needed, since the
+  node comes back and reports its new version in the ordinary status report.
+
+  Best-effort by construction: it runs on a path that is already broken, often
+  because the network is down, so it gets a short timeout and its own failure is
+  logged and dropped. The node keeps forwarding on the binary it still has.
+
+## [1.2.3] - 2026-08-27
+
+Node only. Nothing on the wire changed (still protocol version 4), so this
+node runs against any current panel.
+
+**Take this one if you bill by traffic.** Until now a long-lived connection was
+not counted until it closed, so it could move any amount of traffic for free.
+
+### Fixed
+
+- **TCP traffic is counted while the connection is open.** Both copy paths
+  summed bytes into a local and submitted them only when the copy loop ended —
+  i.e. when the connection closed. A long-lived connection therefore
+  contributed NOTHING to its rule's usage for as long as it stayed up.
+
+  That is a billing hole, not a reporting delay. The panel stops forwarding by
+  comparing reported usage against the plan quota, so a persistent connection —
+  a tunnel, a VPN, a long download — could move any amount of traffic while its
+  owner's quota still read zero, and nothing ever had a reason to stop it. The
+  bytes landed in one lump whenever the connection finally ended, potentially
+  long after the user stopped paying for them.
+
+  Both the userspace copy and the Linux zero-copy (splice) path now report each
+  chunk as it moves, so the unreported amount is never more than one in-flight
+  buffer.
+
+  The previous behaviour was documented as a known limitation; it is closer to
+  a defect, and the documentation is updated with this release.
+
+## [1.2.2] - 2026-08-13
+
+Node only. Nothing on the wire changed — the config protocol stays at version
+4, so this node runs against any current panel.
+
+Worth taking if you run UDP rules with more than one target.
+
+### Fixed
+
+- **A UDP session now falls through to a standby when the primary target fails.**
+  Only the first resolved target was ever attempted, so a target that refused
+  the connection dropped the session's first datagram instead of trying the
+  backups the rule configures.
+
+- **A local bind failure is no longer blamed on the targets.** Binding the
+  outbound socket happens once per session, before target selection. It fails
+  when `OUTBOUND_BIND_IPV4` names an address the host no longer has — a NIC
+  rename or a changed DHCP lease — which says nothing about any target's health.
+  Attempting it per candidate reported that one local fault to the circuit
+  breaker once per target and tripped all of them, and replaced the precise
+  "failed to bind outbound" diagnostic with a message accusing the targets.
+
+### Changed
+
+- **Targets are resolved lazily**, one at a time as their turn comes, instead of
+  all up front. This runs on the listener's receive loop for every new session,
+  so a rule with three DNS targets and a healthy primary was paying three
+  lookups where one would do — and stalling the whole port on a cold cache for
+  two standbys it never used.
+
+## [1.2.1] - 2026-08-02
+
+Node only. Nothing on the wire changed — the config protocol stays at version
+4, so this node runs against any current panel, and upgrading is optional
+unless the node sits somewhere `api.ipify.org` cannot be reached.
+
+### Changed
+
+- **Public-IP detection no longer uses ipify.** `api.ipify.org` is unreachable
+  from mainland China, so on a node there the probe timed out every 30 minutes
+  forever and the panel showed no address for it — and therefore no country
+  flag and no region — while the node was otherwise perfectly online. The
+  defaults are now `api-ipv4.ip.sb` / `api-ipv6.ip.sb`, which answer from both
+  sides.
+
+  Both defaults must stay **family-pinned**, and a test now enforces it. The two
+  probes validate the address family and discard a mismatch, so a dual-stack
+  endpoint — one that replies with whichever family the connection happened to
+  use — makes the IPv4 probe intermittently throw its answer away. That failure
+  appears only on dual-stack hosts and only sometimes, which is why it is worth
+  a test rather than a comment.
+
+  Existing nodes keep working unchanged and can be fixed without upgrading, by
+  setting `PUBLIC_IPV4_CHECK_URL` in `/opt/relay-node/relay-node.env` and
+  restarting. The installer now writes both variables as commented examples.
+
+## [1.2.0] - 2026-07-21
+
+### Added
+
+- **`restart_rule` control message.** The panel can ask the node to drop one
+  rule's connections and rebuild its listeners. The node re-creates listeners
+  from its OWN cached config (`ForwarderManager::last_config`), never from
+  anything in the message, so a restart cannot be used to inject listener
+  config. `node_id` is re-checked on arrival as defence in depth even though
+  `send_node` already routed it.
+
+  The WS dispatch arm for this MUST stay above the diagnose arm and MUST check
+  `type`: `DiagnoseRuleMessage` defaults its `challenge` field and ignores
+  unknown fields, so a `restart_rule` payload deserializes into it cleanly
+  (`rule_id` + `request_id` are both present). Ordered after diagnose, every
+  restart would silently become a target probe instead. A test in
+  `relay-shared` pins the ambiguity.
+
+- **Per-rule concurrent TCP connection cap** (`ListenerConfig.max_connections`,
+  None = unlimited). Admission happens in the accept loop, not in the spawned
+  connection task: the accept loop is sequential, so check-then-increment there
+  is exact, whereas incrementing inside the task would let an unbounded number
+  of accepts through before the first increment landed — precisely the
+  connection-flood case the cap exists for. Over the cap, the socket is dropped
+  immediately (the "at cap" warning is rate-limited to once per 60s per
+  listener; a rule sitting at its cap rejects on every accept, and an
+  unthrottled warn would itself become the outage).
+
+  The counter lives per RULE, not per listener: a dual-stack rule runs two
+  accept loops (IPv4 + IPv6), and a per-listener counter would silently grant
+  double the configured cap.
+
+### Fixed
+
+- **Aborting a listener no longer leaves its connections forwarding.**
+  Connections run on detached `tokio::spawn` tasks, so an aborted accept loop
+  stopped new accepts while every established connection kept relaying —
+  verified: a post-abort read/write round-trips fine. Connections now select on
+  a per-rule cancellation channel (`forwarder::gate`). Consequences:
+  - an explicit `restart_rule` genuinely sheds connections rather than just
+    re-binding the port;
+  - a rule removed from the node's config now stops forwarding, instead of
+    relaying bytes for a rule whose traffic counters `apply_config` already
+    pruned.
+
+  `apply_config`'s fingerprint-driven restart (changed targets / rate caps) does
+  NOT cancel: editing a rule must not kick everyone off, which has been the
+  behaviour since v0.3.6.
+
+- **A UDP-only rule's restart is no longer a silent no-op.** `restart_rule`
+  returned early when the rule had no `RuleRuntime` — but only the TCP arm of
+  `apply_config` creates one (UDP has no `accept()` and no cancellable
+  per-connection tasks), so a UDP-only rule has no runtime while very much
+  having a listener. It was never torn down or rebuilt, and its sessions never
+  dropped. The panel reports success as soon as the command reaches the node, so
+  the operator was told the rule had restarted while nothing happened at all.
+  "No runtime" now means only "no connections to cancel"; whether there are
+  listeners to rebuild is decided separately.
+
+### Compatibility
+
+- Requires panel **1.2.0+** to be sent `restart_rule` or a connection cap. Both
+  additions are backward compatible on the wire (`#[serde(default)]`), so a
+  1.2.0 node runs against an older panel unchanged — it simply never receives
+  either.
+
+## [1.1.2] - 2026-07-12
+
+### Fixed
+
+- **UDP forwarding now follows DDNS target IP changes.** A UDP rule's domain
+  target was resolved ONCE when the listener started (rule push / node boot) and
+  the resolved IP was reused forever — so a DDNS target (WireGuard, game relay,
+  DNS forwarding) that changed IP kept getting blackholed to the stale address
+  until the rule or node was manually restarted. New UDP sessions now resolve
+  through the shared 30s DNS cache (same as TCP), so an IP change is picked up
+  within the cache TTL; established sessions age out on the 60s idle timeout and
+  the next datagram opens a fresh session against the current IP. This also
+  removes the old "unresolvable-at-boot kills the listener → restart loop"
+  behavior — a transient DNS failure no longer tears down the UDP listener.
+
+## [1.1.1] - 2026-07-08
+
+### Fixed
+
+- **File-descriptor exhaustion under connection churn.** Forwarded TCP sockets
+  (both the accepted client side and the dialed target side) now enable TCP
+  keepalive (idle 60s, 15s probes, 4 retries). Previously a peer that vanished
+  without a FIN/RST — NAT rebind, mobile handoff, cable pull, a firewall that
+  drops instead of resets — left the bidirectional copy blocked on `read()`
+  forever, holding two fds; under churn these dead half-open connections
+  accumulated until the node hit `EMFILE` ("Too many open files", os error 24),
+  even at `LimitNOFILE=65536`. Keepalive lets the kernel reap dead peers so the
+  copy task ends and releases its fds.
+- **Low fd limit on non-systemd launches.** The node now raises its own
+  `RLIMIT_NOFILE` soft limit toward the hard limit at startup, so a docker or
+  manual (bash/nohup) launch — which inherits the 1024 default instead of the
+  systemd unit's `LimitNOFILE=65536` — no longer exhausts descriptors under
+  moderate load. The node Docker Compose service also sets `ulimits.nofile` to
+  65536 to match.
+
+---
+
+## [1.1.0] - 2026-07-02
+
+The node half of the **one-click remote upgrade** release. (Panel-side changes
+for the same feature are in `CHANGELOG.md` under [1.1.0].)
+
+### Added
+
+- **Self-upgrade.** On receiving a directed `upgrade_node` command over the WS
+  control channel, a systemd node downloads the official `relay-node` release
+  for its architecture from the GitHub release, **verifies the published
+  sha256**, backs up its current binary, atomically swaps, and exits so systemd
+  restarts it. Safety:
+  - **Upgrade-only:** the target must be a valid semver strictly newer than the
+    running version, so a compromised panel can't force a downgrade.
+  - **Install-aware:** only systemd nodes self-upgrade; docker nodes are told to
+    update the image, and manual runs are disabled (nothing would restart them).
+  - **Single-flight + mandatory backup:** repeated commands can't corrupt the
+    binary, and a failed backup aborts the swap.
+- Binaries continue to ship for both **amd64 and arm64** (static musl + rustls).
+
+### Notes
+
+- Assets for 1.1.0 and earlier were published under the joint `v*` tag (panel
+  and node shared a release). From 1.1.1 onward, node binaries publish under the
+  dedicated `node-v*` tag. The node's self-upgrade download logic falls back to
+  the `v*` URL for versions ≤ 1.1.0 so existing 1.1.0 nodes can still reach the
+  historical asset; newer versions use `node-v*` exclusively.
+
+---
+
+_The node has no code, forwarding, protocol, or dependency changes in this
+round, so no newer `node-v*` version is cut. A node release is only tagged when
+something node-side actually changed._

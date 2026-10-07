@@ -1,0 +1,266 @@
+/* RelayPanel global theme — "石墨靛蓝 / Graphite + Indigo".
+   Near-black graphite sidebar, indigo accent, larger radii, hairline
+   borders. Premium admin look (Linear / Vercel direction), no template feel.
+   Component colors are driven by styles/antdTheme.ts; this file owns the
+   layout chrome + custom (non-antd) elements. */
+
+:root {
+  /* Layout */
+  --rp-sidebar-bg: #18181b;
+  --rp-sidebar-width: 220px;
+  --rp-header-height: 56px;
+  --rp-content-padding: 24px;
+
+  /* Colors — muted, not garish */
+  --rp-bg: #fafafa;
+  --rp-card-bg: #ffffff;
+  --rp-border: #ececef;
+  --rp-text: #18181b;
+  /* Darkened in v1.2.5. The old tertiary (#8f959e) sat at 3.02:1 against white
+     — below the 4.5:1 WCAG AA needs for body text — and it was carrying real
+     content on the node table: CPU, memory and disk percentages, transfer
+     rates. Secondary passed at 5.45:1 but read washed out beside it. */
+  --rp-text-secondary: #4b5563;
+  --rp-text-tertiary: #6b7280;
+
+  /* v1.2.5: the offline-node palette. Grey enough to read as "not live" beside
+     a row of #18181b text, dark enough (4.83:1 on the tint) to stay legible —
+     these are the last readings before the node went, not decoration. */
+  --rp-node-offline-text: #6b7280;
+  --rp-node-offline-bg: #f7f7f8;
+  --rp-node-offline-bar: #c7c9cf;
+
+  /* Accents — indigo */
+  --rp-primary: #6366f1;
+  --rp-primary-bg: #eef2ff;
+  --rp-success: #059669;
+  --rp-warning: #d97706;
+  --rp-danger: #ef4444;
+
+  /* Tags — desaturated for admin comfort */
+  --rp-tag-tcp: #6366f1;
+  --rp-tag-udp: #7c3aed;
+  --rp-tag-in: #059669;
+  --rp-tag-out: #0d9488;
+  --rp-tag-admin: #d97706;
+
+  /* Radii & shadows — subtle */
+  --rp-radius: 10px;
+  --rp-radius-sm: 8px;
+  --rp-shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --rp-shadow: 0 2px 8px rgba(0,0,0,0.06);
+
+  /* Table */
+  --rp-table-header-bg: #fafafa;
+  --rp-table-row-hover: #f5f5ff;
+
+  /* Font */
+  --rp-font: "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --rp-font-mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas,
+    "Courier New", monospace;
+}
+
+/* ---- Global resets ---- */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--rp-bg);
+  font-family: var(--rp-font);
+  font-size: 14px;
+  color: var(--rp-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- antd overrides ---- */
+
+/* Table: comfortable rows, subtle header */
+.ant-table {
+  font-size: 13px;
+}
+.ant-table-thead > tr > th {
+  background: var(--rp-table-header-bg) !important;
+  font-weight: 500;
+  color: var(--rp-text-secondary);
+  border-bottom: 1px solid var(--rp-border) !important;
+}
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--rp-border) !important;
+}
+.ant-table-tbody > tr:hover > td {
+  background: var(--rp-table-row-hover) !important;
+}
+
+/* v1.2.5: an offline node's row, greyed.
+ *
+ * Every figure in it — CPU, speed, uptime, connections — is the LAST report,
+ * not a live reading. Rendered identically to an online row, a wall of
+ * healthy-looking numbers says the opposite of what is true, and since v1.2.5
+ * these rows stay listed for 24h, so there are more of them to tell apart.
+ *
+ * Grey, deliberately not faded: these are the readings from the moment the
+ * node stopped, which is exactly what you look at when working out why. The
+ * colour stays above the 4.5:1 contrast floor. Tags and buttons keep their own
+ * colours — status and the remove action are how you act on the row. */
+.ant-table-tbody > tr.rp-node-offline > td {
+  background: var(--rp-node-offline-bg);
+  color: var(--rp-node-offline-text);
+}
+/* The progress fill is the loudest "live" signal on the row: a green CPU bar
+ * reads as healthy right now. Neutralise the threshold colour — the exact
+ * percentage is still in the tooltip.
+ *
+ * .ant-progress-track is antd v6's name for the filled part (v5 called it
+ * .ant-progress-bg). !important is required, not defensive: strokeColor lands
+ * as an inline `background` on that element. */
+.rp-node-offline .ant-progress-track,
+.rp-node-offline-card .ant-progress-track {
+  background: var(--rp-node-offline-bar) !important;
+}
+
+/* Same treatment for the mobile card list, which has no table rows. */
+.rp-node-offline-card {
+  background: var(--rp-node-offline-bg);
+  color: var(--rp-node-offline-text);
+}
+.rp-node-meta {
+  color: var(--rp-text-secondary);
+}
+.rp-node-offline-card .rp-node-meta {
+  color: var(--rp-node-offline-text);
+}
+
+/* Cards: clean, minimal shadow */
+.ant-card {
+  border-radius: var(--rp-radius);
+  border: 1px solid var(--rp-border);
+  box-shadow: var(--rp-shadow-sm);
+}
+.ant-card-head {
+  min-height: 44px;
+  border-bottom: 1px solid var(--rp-border);
+}
+
+/* Buttons: uniform sizing, no wrapping */
+.ant-btn {
+  border-radius: var(--rp-radius-sm);
+  font-size: 13px;
+}
+
+/* Modal */
+.ant-modal-content {
+  border-radius: var(--rp-radius);
+}
+
+/* Form labels */
+.ant-form-item-label > label {
+  font-size: 13px;
+  color: var(--rp-text-secondary);
+}
+
+/* Segmented (language switch) */
+.ant-segmented {
+  border-radius: var(--rp-radius-sm);
+}
+
+/* Code/mono text for tokens, IPs, ports */
+.ant-typography code {
+  font-family: var(--rp-font-mono);
+  font-size: 12px;
+  background: var(--rp-table-header-bg);
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-radius-sm);
+  padding: 1px 6px;
+}
+
+/* ---- Layout helpers ---- */
+.rp-page-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--rp-text);
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rp-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.rp-stat-card {
+  border-radius: var(--rp-radius);
+  border: 1px solid var(--rp-border);
+  box-shadow: var(--rp-shadow-sm);
+}
+.rp-stat-card .ant-statistic-title {
+  font-size: 13px;
+  color: var(--rp-text-secondary);
+}
+.rp-stat-card .ant-statistic-content {
+  font-size: 28px;
+  font-weight: 500;
+}
+
+/* Mono fields in tables */
+.rp-mono {
+  font-family: var(--rp-font-mono);
+  font-size: 12px;
+}
+
+/* Transfer values are a single measurement. Breaking between a number and its
+   unit (for example, "60.11" / "KB/s") makes the node table harder to scan.
+   The desktop table already supplies horizontal scrolling for narrower views. */
+.rp-node-throughput {
+  white-space: nowrap;
+}
+
+/* v0.4.17: country-flag pill wrapper. Outer layer sizes & rounds the slot;
+ *  the inner .fi (from flag-icons) is pinned to a fixed flag size so the
+ *  library's own .fi rules never disturb the surrounding table layout. */
+.country-flag-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #eee7ff;
+  font-size: 12px;
+  color: var(--rp-text-secondary);
+  vertical-align: middle;
+}
+.country-flag-pill .fi {
+  width: 20px;
+  height: 14px;
+  border-radius: 2px;
+  background-size: cover;
+}
+
+/* v1.2.3: give the forwarding tab one field width.
+
+   The four controls there used to disagree. 负载策略 and 最大连接数 are a
+   plain Select / InputNumber, so width:100% made them span the form (572px
+   in the 620px dialog). 限速 and 自动重启间隔 carry addons (上行/下行, Mbps,
+   分钟) and antd wraps those in a Space.Compact group — width:100% then
+   applies to the number box INSIDE the group, leaving the group sized to its
+   content (~252px). Two long rows and two short ones in the same column.
+
+   All four are now 252: the addon groups keep their natural size and the two
+   plain controls are capped to match (their cap is inline, on the component).
+   A rule name or a strategy dropdown does not need half the dialog anyway.
+
+   Scoped to the rule dialogs and to addon groups only, so nothing else moves:
+   the basic tab stays full-width, and the targets row keeps its explicit
+   widths (address 320, port 110) — which is what keeps that row on one line. */
+.rp-rule-form .ant-form-item-control-input-content .ant-space-compact,
+.rp-rule-form .ant-form-item-control-input-content .ant-input-number-group-wrapper {
+  width: 100%;
+  max-width: 252px;
+}

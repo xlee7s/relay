@@ -1,0 +1,347 @@
+name: Docker Release
+
+# v1.2: panel and node release on INDEPENDENT tracks. This workflow is PANEL-
+# ONLY and fires on `v*` tags. It builds + pushes the panel image and creates
+# the panel GitHub Release (body from CHANGELOG.md). The node image, node
+# binaries, and node Release are published by node-release.yml on `node-v*` tags
+# — a panel-only update no longer rebuilds or republishes any node artifact, and
+# realy-node:latest is untouched by a panel release.
+#
+# v1.3: panel image is now a multi-arch manifest (linux/amd64 + linux/arm64).
+# Each architecture compiles natively on its own runner — no QEMU, no cross-toolchain.
+# The frontend is built once (architecture-independent) and shared by both legs.
+# The two per-arch images are merged into a manifest via `imagetools create`,
+# then verified; only then is :latest moved and the GitHub Release published.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Panel version (e.g. 1.1.1), without v prefix'
+        required: true
+        default: '1.1.1'
+
+# v1.2.12: read-only by default; each job asks for exactly the write it needs.
+# build-frontend runs `npm ci` (third-party install scripts) and gets no write
+# access at all. A job-level `permissions` block REPLACES this one, so jobs
+# that check out the repo list `contents: read` again.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/xlee7s/realy-panel
+
+jobs:
+  build-frontend:
+    name: Build frontend (shared)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps
+        run: cd frontend && npm ci --no-audit --no-fund
+
+      - name: Build
+        run: cd frontend && npm run build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  build-and-push:
+    name: Build + push ${{ matrix.arch }} image
+    runs-on: ${{ matrix.runner }}
+    needs: build-frontend
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest        # amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm     # arm64, native GitHub runner
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # v1.2.12: the dispatch input arrives through env (never spliced
+          # into this script) and must be a bare semver.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must be a bare semver like 1.2.12 (got '$VERSION')"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building panel image $VERSION for ${{ matrix.arch }}"
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: release-dist/frontend
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Install dependencies (pkg-config, libssl-dev, ca-certificates)
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev ca-certificates && \
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Build relay-panel binary (native, no cross-compilation)
+        run: cargo build --release -p relay-panel
+
+      - name: Prepare release dist layout
+        run: |
+          mkdir -p release-dist/panel
+          cp target/release/relay-panel release-dist/panel/relay-panel
+
+      - name: Build and push ${{ matrix.arch }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: panel-release
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.version }}-${{ matrix.arch }}
+          # provenance:false keeps each per-arch push a pure single-platform
+          # image. With the default (provenance on), each push becomes an OCI
+          # index carrying an `unknown/unknown` attestation entry, which
+          # imagetools create would then copy into the merged multi-arch
+          # manifest — untidy and confusing to scanners. We build a clean
+          # 2-entry (amd64 + arm64) manifest instead.
+          provenance: false
+          # scope per arch so the two matrix legs don't clobber each other's
+          # BuildKit cache (the gha backend defaults to a single shared scope).
+          cache-from: type=gha,scope=panel-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=panel-${{ matrix.arch }}
+
+  publish-manifest:
+    name: Merge multi-arch manifest
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Determine version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # v1.2.12: the dispatch input arrives through env (never spliced
+          # into this script) and must be a bare semver.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must be a bare semver like 1.2.12 (got '$VERSION')"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge per-arch images into manifest
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          IMAGE="${{ env.IMAGE }}"
+          echo "Creating multi-arch manifest for $IMAGE:$VERSION"
+          docker buildx imagetools create -t "$IMAGE:$VERSION" \
+            "$IMAGE:${VERSION}-amd64" \
+            "$IMAGE:${VERSION}-arm64"
+          echo "::notice::Multi-arch manifest $IMAGE:$VERSION created"
+
+  # Post-release verification: inspect the manifest and confirm it contains
+  # both architectures. This is the panel equivalent of node-release.yml's
+  # `verify` job — without it, a broken arm64 leg could leave CI green
+  # while the manifest is incomplete.
+  verify:
+    name: Verify manifest
+    needs: publish-manifest
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+
+    steps:
+      - name: Determine version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # v1.2.12: the dispatch input arrives through env (never spliced
+          # into this script) and must be a bare semver.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must be a bare semver like 1.2.12 (got '$VERSION')"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Inspect manifest for both architectures
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          IMAGE="${{ env.IMAGE }}"
+          OUTPUT=$(docker buildx imagetools inspect "$IMAGE:$VERSION" 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "linux/amd64"  || { echo "::error::Manifest missing linux/amd64"; exit 1; }
+          echo "$OUTPUT" | grep -q "linux/arm64"   || { echo "::error::Manifest missing linux/arm64"; exit 1; }
+          echo "::notice::Manifest verified: both linux/amd64 and linux/arm64 present."
+
+  # v1.2.12: move :latest only AFTER verify passes (it used to be promoted in
+  # publish-manifest, before verification). Same gate as node-release.yml. The
+  # verified :X.Y.Z manifest is re-tagged, so :latest gets the exact digest
+  # that was checked.
+  promote-latest:
+    name: Promote :latest (after verify)
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Determine version
+        id: ver
+        # The dispatch input arrives through env (never spliced into this
+        # script) and must be a bare semver.
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must be a bare semver like 1.2.12 (got '$VERSION')"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-tag :X.Y.Z as :latest
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          IMAGE="${{ env.IMAGE }}"
+          echo "Promoting $IMAGE:$VERSION -> $IMAGE:latest (verified manifest)"
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+          echo "::notice::$IMAGE:latest promoted to $IMAGE:$VERSION"
+
+  # Create the GitHub Release AFTER the manifest is built and verified.
+  # The old shape created the release immediately after the single build,
+  # meaning a broken image could never be caught before the release appeared
+  # in GitHub's public listing.
+  create-release:
+    name: Create GitHub Release
+    needs: [verify, promote-latest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # v1.2.12: the dispatch input arrives through env (never spliced
+          # into this script) and must be a bare semver.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must be a bare semver like 1.2.12 (got '$VERSION')"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release body from CHANGELOG.md
+        id: body
+        run: |
+          if ! bash scripts/extract-changelog.sh "${{ steps.ver.outputs.version }}" > RELEASE_BODY.md; then
+            echo "::error::No non-empty CHANGELOG.md section for ${{ steps.ver.outputs.version }} — refusing to publish an empty release body."
+            exit 1
+          fi
+          echo "----- release body preview -----"
+          cat RELEASE_BODY.md
+
+      - name: Create panel GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          body_path: RELEASE_BODY.md
+          prerelease: false
+          make_latest: true

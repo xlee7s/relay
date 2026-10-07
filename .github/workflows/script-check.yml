@@ -1,0 +1,60 @@
+name: Script Check
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shell:
+    name: bash syntax + shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n
+        run: |
+          scripts=()
+          for file in install.sh deploy.sh scripts/*.sh; do
+            [ -s "$file" ] && scripts+=("$file")
+          done
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "No non-empty shell scripts to check."
+            exit 0
+          fi
+          bash -n "${scripts[@]}"
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: shellcheck
+        run: |
+          scripts=()
+          for file in install.sh deploy.sh scripts/*.sh; do
+            [ -s "$file" ] && scripts+=("$file")
+          done
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "No non-empty shell scripts to check."
+            exit 0
+          fi
+          shellcheck --severity=error "${scripts[@]}"
+
+      # v1.2.11: the one-click panel updater runs as root on the host, so its
+      # every branch is exercised here against stubbed git/docker/curl.
+      - name: panel updater scenarios
+        run: bash scripts/test-panel-updater.sh
+
+      # v1.2.12: operator input (-t/-u/-s) is validated and written into the
+      # node's start.sh without any chance of executing.
+      - name: node installer input handling
+        run: bash scripts/test-node-install.sh
+
+      # v1.2.12: deploy.sh web modes, DB modes and the pre-upgrade SQLite
+      # backup, against stubbed docker/curl/openssl.
+      - name: deploy.sh scenarios
+        run: bash scripts/deploy-web-mode-check.sh
