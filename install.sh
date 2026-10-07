@@ -3,7 +3,7 @@
 # RelayPanel one-line installer for Linux (Debian / Ubuntu).
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | bash
 #
 
 # Touch: trigger script-check CI on version-only PRs (paths filter otherwise skips it).
@@ -127,7 +127,7 @@ if [ -d "$INSTALL_DIR" ]; then
             echo -e "${RED}[FAIL]${NC} Repository update failed. git output:" >&2
             cat /tmp/relaypanel-git-err >&2
             rm -f /tmp/relaypanel-git-err
-            fail "git pull failed. If your local branch diverged, reset with: git -C $INSTALL_DIR reset --hard origin/main"
+            fail "git pull failed. If your local branch diverged, reset with: git -C $INSTALL_DIR reset --hard origin/master"
         fi
         rm -f /tmp/relaypanel-git-err
         after=$(git rev-parse --short HEAD 2>/dev/null || echo '?')

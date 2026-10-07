@@ -16,7 +16,7 @@
 # untrusted input:
 #   - Nothing in ./run is executed or sourced, and the request file's CONTENT is
 #     never read: the version installed is whatever the official repository's
-#     main branch says, not what the panel asked for.
+#     master branch says, not what the panel asked for.
 #   - Files are written into ./run only as a fresh mktemp file renamed into
 #     place. A rename replaces a planted symlink instead of following it, so a
 #     compromised panel cannot point update-status.json at /etc/shadow and have

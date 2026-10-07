@@ -43,7 +43,7 @@ uname -m
 写好 systemd 服务并启动：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) \
   -t <NODE_TOKEN> \
   -u https://your-panel.example.com
 ```
@@ -229,7 +229,7 @@ SSH 登录节点。
 不用自己记：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) \
   -t <NODE_TOKEN> \
   -u https://your-panel.example.com
 ```

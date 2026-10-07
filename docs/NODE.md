@@ -45,7 +45,7 @@ This is the supported path. It detects the architecture, downloads the right
 binary from GitHub Releases, writes a systemd service, and starts it.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) \
   -t <NODE_TOKEN> \
   -u https://your-panel.example.com
 ```
@@ -282,7 +282,7 @@ carries the correct `-t <NODE_TOKEN> -u <PANEL_URL>`, so you don't have to
 remember them:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) \
   -t <NODE_TOKEN> \
   -u https://your-panel.example.com
 ```

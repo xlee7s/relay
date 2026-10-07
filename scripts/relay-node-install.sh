@@ -3,7 +3,7 @@
 # RelayPanel node installer - downloads and runs relay-node as a systemd service.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
+#   bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) \
 #     -t <NODE_TOKEN> -u <PANEL_URL>
 #
 # Options:

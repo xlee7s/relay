@@ -18,7 +18,7 @@ exist here. Then run these commands from this project directory:
 git init
 git add .
 git commit -m "Initialize relay repository"
-git branch -M main
+git branch -M master
 git remote add origin https://github.com/xlee7s/relay.git
 git push -u origin main
 ```
@@ -63,7 +63,7 @@ docker pull ghcr.io/xlee7s/relay-node:1.2.6
 After both pulls succeed anonymously, the public installer is ready:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | bash
 ```
 
 For a temporary source build before the packages exist, clone the repository

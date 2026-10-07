@@ -17,7 +17,7 @@ clones the repo into `/opt/relay`, then runs `deploy.sh` (which installs
 Docker, generates secrets, builds, and verifies):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | bash
 ```
 
 Run as root (default on most VPS / cloud servers). If logged in as a non-root
@@ -68,7 +68,7 @@ Go to Device Groups → Add Group (type: inbound) → copy the **Install Command
 ### 2. Run on the node server
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) \
   -t <token> -u http://<panel-ip>:18888
 ```
 

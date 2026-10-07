@@ -45,7 +45,7 @@
 **一条命令部署：**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | bash
 ```
 
 > 🔑 **默认账号 `admin` / `admin123`，首次登录强制修改密码。**

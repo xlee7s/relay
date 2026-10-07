@@ -12,7 +12,7 @@ name: Debian Compat
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

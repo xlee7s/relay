@@ -46,7 +46,7 @@ Full feature reference and user docs: **[Project documentation](docs/DEPLOYMENT.
 **One command deploy:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | bash
 ```
 
 > 🔑 **Default login `admin` / `admin123` — first login forces a password change.**
