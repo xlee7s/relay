@@ -16,6 +16,7 @@ export default function Forbidden() {
   const { t } = useI18n();
   const navigate = useNavigate();
   return (
+    <div className="rp-result-page">
     <Result
       status="403"
       title="403"
@@ -26,5 +27,6 @@ export default function Forbidden() {
         </Button>
       }
     />
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Space, Typography, Segmented, Modal, Form, Input, message, Spin, Badge, Tooltip } from 'antd';
+import { Layout, Menu, Button, Space, Typography, Modal, Form, Input, message, Spin, Badge, Tooltip } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, Suspense } from 'react';
 import {
@@ -28,7 +28,7 @@ const { Text } = Typography;
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const { isAdmin, user, logout: authLogout } = useAuth();
   const site = useSite();
   // Marked seen by the archive page itself, so the dot clears only once the
@@ -121,19 +121,17 @@ export default function MainLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout className="rp-app-shell">
       <Sider
         collapsible
         breakpoint="lg"
-        width={220}
-        style={{ background: 'var(--rp-sidebar-bg)' }}
+        collapsedWidth={72}
+        width={248}
+        className="rp-sidebar"
       >
-        <div style={{
-          height: 'var(--rp-header-height)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 17, fontWeight: 600, letterSpacing: 0.5,
-        }}>
-          {site.site_name || t('brand')}
+        <div className="rp-brand">
+          <span className="rp-brand-mark"><ApiOutlined /></span>
+          <span className="rp-brand-name">{site.site_name || t('brand')}</span>
         </div>
         <Menu
           theme="dark"
@@ -144,17 +142,13 @@ export default function MainLayout() {
           // Parent entries carry a `grp-` key and no route — clicking one only
           // expands it, so navigating on them would 404.
           onClick={({ key }) => { if (!key.startsWith('grp-')) navigate(key); }}
+          className="rp-main-menu"
           style={{ borderRight: 0 }}
         />
       </Sider>
-      <Layout>
-        <Header style={{
-          background: '#fff', height: 'var(--rp-header-height)',
-          padding: '0 24px', lineHeight: 'var(--rp-header-height)',
-          display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-          borderBottom: '1px solid var(--rp-border)',
-        }}>
-          <Space size="middle">
+      <Layout className="rp-main-stage">
+        <Header className="rp-topbar">
+          <Space size="middle" className="rp-topbar-actions">
             {/* v1.2.4: announcements live here rather than in the sidebar.
                 The banner already carries the current notice, so a menu row
                 would only be a route to the archive — a low-frequency
@@ -175,15 +169,6 @@ export default function MainLayout() {
                 {t('announcements')}
               </Button>
             </Badge>
-            <Segmented
-              size="small"
-              value={lang}
-              onChange={(v) => setLang(v as 'zh-CN' | 'en-US')}
-              options={[
-                { value: 'zh-CN', label: t('langZhCN') },
-                { value: 'en-US', label: t('langEnUS') },
-              ]}
-            />
             <Text type="secondary" style={{ fontSize: 13 }}>
               {isAdmin ? t('admin') : t('user')}
             </Text>
@@ -209,12 +194,12 @@ export default function MainLayout() {
             </Button>
           </Space>
         </Header>
-        <Content style={{ margin: 'var(--rp-content-padding)', background: 'var(--rp-bg)' }}>
+        <Content className="rp-content">
           {/* v1.2 (PR4): lazy-loaded pages (router.tsx) suspend here on first
               navigation to their chunk, showing a centered spinner instead of a
               blank pane. */}
           <Suspense fallback={<div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>}>
-            <Outlet />
+            <div className="rp-content-inner"><Outlet /></div>
           </Suspense>
         </Content>
       </Layout>

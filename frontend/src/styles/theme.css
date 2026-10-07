@@ -1,241 +1,797 @@
-/* RelayPanel global theme — "石墨靛蓝 / Graphite + Indigo".
-   Near-black graphite sidebar, indigo accent, larger radii, hairline
-   borders. Premium admin look (Linear / Vercel direction), no template feel.
-   Component colors are driven by styles/antdTheme.ts; this file owns the
-   layout chrome + custom (non-antd) elements. */
+/* RelayPanel visual system — deep ocean navigation, luminous blue accents,
+   layered content surfaces. Component behavior remains owned by React/AntD. */
 
 :root {
-  /* Layout */
-  --rp-sidebar-bg: #18181b;
-  --rp-sidebar-width: 220px;
-  --rp-header-height: 56px;
-  --rp-content-padding: 24px;
+  --rp-sidebar-bg: #081426;
+  --rp-sidebar-surface: #0d1d34;
+  --rp-sidebar-width: 248px;
+  --rp-header-height: 68px;
+  --rp-content-padding: 28px;
 
-  /* Colors — muted, not garish */
-  --rp-bg: #fafafa;
-  --rp-card-bg: #ffffff;
-  --rp-border: #ececef;
-  --rp-text: #18181b;
-  /* Darkened in v1.2.5. The old tertiary (#8f959e) sat at 3.02:1 against white
-     — below the 4.5:1 WCAG AA needs for body text — and it was carrying real
-     content on the node table: CPU, memory and disk percentages, transfer
-     rates. Secondary passed at 5.45:1 but read washed out beside it. */
-  --rp-text-secondary: #4b5563;
-  --rp-text-tertiary: #6b7280;
+  --rp-bg: #f3f6fb;
+  --rp-card-bg: rgba(255, 255, 255, 0.96);
+  --rp-card-solid: #ffffff;
+  --rp-border: #e2e8f2;
+  --rp-border-strong: #d5deeb;
+  --rp-text: #152238;
+  --rp-text-secondary: #526178;
+  --rp-text-tertiary: #718096;
 
-  /* v1.2.5: the offline-node palette. Grey enough to read as "not live" beside
-     a row of #18181b text, dark enough (4.83:1 on the tint) to stay legible —
-     these are the last readings before the node went, not decoration. */
-  --rp-node-offline-text: #6b7280;
-  --rp-node-offline-bg: #f7f7f8;
-  --rp-node-offline-bar: #c7c9cf;
+  --rp-primary: #4f6df5;
+  --rp-primary-hover: #3c5ce7;
+  --rp-primary-soft: #eef2ff;
+  --rp-cyan: #21b8d5;
+  --rp-success: #0da678;
+  --rp-warning: #e58b24;
+  --rp-danger: #ed5a65;
 
-  /* Accents — indigo */
-  --rp-primary: #6366f1;
-  --rp-primary-bg: #eef2ff;
-  --rp-success: #059669;
-  --rp-warning: #d97706;
-  --rp-danger: #ef4444;
+  --rp-node-offline-text: #68778d;
+  --rp-node-offline-bg: #f7f8fb;
+  --rp-node-offline-bar: #b9c3d1;
 
-  /* Tags — desaturated for admin comfort */
-  --rp-tag-tcp: #6366f1;
-  --rp-tag-udp: #7c3aed;
-  --rp-tag-in: #059669;
-  --rp-tag-out: #0d9488;
-  --rp-tag-admin: #d97706;
+  --rp-radius-xl: 22px;
+  --rp-radius: 16px;
+  --rp-radius-sm: 11px;
+  --rp-shadow-sm: 0 1px 2px rgba(29, 45, 73, 0.03), 0 6px 18px rgba(29, 45, 73, 0.05);
+  --rp-shadow: 0 12px 34px rgba(29, 45, 73, 0.09);
+  --rp-shadow-float: 0 20px 55px rgba(20, 35, 65, 0.14);
 
-  /* Radii & shadows — subtle */
-  --rp-radius: 10px;
-  --rp-radius-sm: 8px;
-  --rp-shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --rp-shadow: 0 2px 8px rgba(0,0,0,0.06);
-
-  /* Table */
-  --rp-table-header-bg: #fafafa;
-  --rp-table-row-hover: #f5f5ff;
-
-  /* Font */
-  --rp-font: "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-  --rp-font-mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas,
-    "Courier New", monospace;
+  --rp-font: Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --rp-font-mono: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas,
+    monospace;
 }
 
-/* ---- Global resets ---- */
-html, body, #root {
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
   margin: 0;
-  padding: 0;
-  height: 100%;
+  min-height: 100%;
   background: var(--rp-bg);
+  color: var(--rp-text);
   font-family: var(--rp-font);
   font-size: 14px;
-  color: var(--rp-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---- antd overrides ---- */
+body {
+  min-width: 320px;
+}
 
-/* Table: comfortable rows, subtle header */
+::selection {
+  color: #fff;
+  background: rgba(79, 109, 245, 0.85);
+}
+
+/* Application frame */
+.rp-app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 92% 2%, rgba(79, 109, 245, 0.09), transparent 27rem),
+    radial-gradient(circle at 56% 86%, rgba(33, 184, 213, 0.06), transparent 32rem),
+    var(--rp-bg) !important;
+}
+
+.rp-sidebar.ant-layout-sider {
+  position: relative;
+  z-index: 20;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 4%, rgba(79, 109, 245, 0.25), transparent 14rem),
+    linear-gradient(180deg, var(--rp-sidebar-surface), var(--rp-sidebar-bg) 55%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 10px 0 35px rgba(8, 20, 38, 0.09);
+}
+
+.rp-sidebar::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background-image: linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: linear-gradient(to bottom, #000, transparent 72%);
+}
+
+.rp-sidebar .ant-layout-sider-children {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rp-brand {
+  display: flex;
+  align-items: center;
+  height: var(--rp-header-height);
+  padding: 0 20px;
+  gap: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.rp-brand-mark {
+  display: inline-flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: #fff;
+  font-size: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6d7dff, #25bdd8);
+  box-shadow: 0 8px 24px rgba(57, 103, 241, 0.35);
+}
+
+.rp-brand-name {
+  overflow: hidden;
+  color: #f7f9ff;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+}
+
+.rp-main-menu.ant-menu {
+  flex: 1;
+  padding: 15px 12px 72px;
+  background: transparent !important;
+  border-inline-end: 0 !important;
+}
+
+.rp-main-menu.ant-menu-inline-collapsed {
+  padding-inline: 9px;
+}
+
+.rp-main-menu .ant-menu-item,
+.rp-main-menu .ant-menu-submenu-title {
+  height: 44px;
+  margin-block: 5px;
+  line-height: 44px;
+  border-radius: 12px;
+}
+
+.rp-main-menu .ant-menu-item .anticon,
+.rp-main-menu .ant-menu-submenu-title .anticon {
+  font-size: 17px;
+}
+
+.rp-main-menu .ant-menu-item-selected {
+  box-shadow: inset 0 0 0 1px rgba(149, 167, 255, 0.16), 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.rp-main-menu .ant-menu-item-selected::before {
+  position: absolute;
+  left: -12px;
+  width: 3px;
+  height: 20px;
+  border-radius: 0 4px 4px 0;
+  background: #7f91ff;
+  content: "";
+}
+
+.rp-sidebar .ant-layout-sider-trigger {
+  height: 48px;
+  color: #8fa0b8;
+  line-height: 48px;
+  background: rgba(4, 12, 24, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.rp-sidebar .ant-layout-sider-trigger:hover {
+  color: #fff;
+  background: rgba(79, 109, 245, 0.18);
+}
+
+.rp-main-stage {
+  min-width: 0;
+  background: transparent !important;
+}
+
+.rp-topbar.ant-layout-header {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: var(--rp-header-height);
+  padding: 0 28px;
+  line-height: normal;
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-bottom: 1px solid rgba(214, 223, 237, 0.86);
+  box-shadow: 0 5px 24px rgba(30, 48, 78, 0.045);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+.rp-topbar-actions {
+  padding: 5px;
+  border: 1px solid rgba(222, 229, 239, 0.8);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.rp-topbar-actions .ant-btn {
+  box-shadow: none !important;
+}
+
+.rp-content.ant-layout-content {
+  min-width: 0;
+  margin: 0;
+  padding: var(--rp-content-padding);
+  background: transparent;
+}
+
+.rp-content-inner {
+  width: 100%;
+  max-width: 1680px;
+  min-height: calc(100vh - var(--rp-header-height) - var(--rp-content-padding) * 2);
+  margin: 0 auto;
+  animation: rp-content-enter 0.38s ease both;
+}
+
+@keyframes rp-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Page composition */
+.rp-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  margin-bottom: 20px;
+  gap: 18px;
+}
+
+.rp-page-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  gap: 10px;
+  color: var(--rp-text);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.rp-page-title::before {
+  width: 5px;
+  height: 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--rp-primary), var(--rp-cyan));
+  box-shadow: 0 3px 10px rgba(79, 109, 245, 0.28);
+  content: "";
+}
+
+/* Cards and data surfaces */
+.ant-card {
+  overflow: hidden;
+  border-color: var(--rp-border) !important;
+  border-radius: var(--rp-radius) !important;
+  background: var(--rp-card-bg);
+  box-shadow: var(--rp-shadow-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ant-card:hover {
+  border-color: var(--rp-border-strong) !important;
+  box-shadow: var(--rp-shadow);
+}
+
+.ant-card-head {
+  min-height: 54px;
+  padding-inline: 20px !important;
+  border-bottom-color: var(--rp-border) !important;
+  background: linear-gradient(180deg, rgba(250, 252, 255, 0.9), rgba(255, 255, 255, 0.65));
+}
+
+.ant-card-head-title {
+  color: var(--rp-text);
+  font-weight: 650;
+}
+
+.ant-card-body {
+  padding: 20px;
+}
+
+.rp-stat-card {
+  position: relative;
+  min-height: 128px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0, rgba(79, 109, 245, 0.13), transparent 9rem),
+    linear-gradient(145deg, #fff, #f9fbff) !important;
+}
+
+.rp-stat-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--rp-primary), var(--rp-cyan), transparent 85%);
+  content: "";
+}
+
+.rp-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.rp-stat-card .ant-statistic-title {
+  margin-bottom: 11px;
+  color: var(--rp-text-secondary);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.rp-stat-card .ant-statistic-content {
+  color: var(--rp-text);
+  font-size: clamp(24px, 2vw, 31px);
+  font-weight: 720;
+  letter-spacing: -0.035em;
+}
+
+/* Tables */
+.ant-table-wrapper {
+  overflow: hidden;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-radius);
+  background: var(--rp-card-solid);
+  box-shadow: var(--rp-shadow-sm);
+}
+
+.ant-card .ant-table-wrapper {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .ant-table {
+  color: var(--rp-text);
   font-size: 13px;
 }
-.ant-table-thead > tr > th {
-  background: var(--rp-table-header-bg) !important;
-  font-weight: 500;
-  color: var(--rp-text-secondary);
-  border-bottom: 1px solid var(--rp-border) !important;
-}
-.ant-table-tbody > tr > td {
-  border-bottom: 1px solid var(--rp-border) !important;
-}
-.ant-table-tbody > tr:hover > td {
-  background: var(--rp-table-row-hover) !important;
+
+.ant-table-container table > thead > tr:first-child > *:first-child,
+.ant-table-container table > thead > tr:first-child > *:last-child {
+  border-radius: 0 !important;
 }
 
-/* v1.2.5: an offline node's row, greyed.
- *
- * Every figure in it — CPU, speed, uptime, connections — is the LAST report,
- * not a live reading. Rendered identically to an online row, a wall of
- * healthy-looking numbers says the opposite of what is true, and since v1.2.5
- * these rows stay listed for 24h, so there are more of them to tell apart.
- *
- * Grey, deliberately not faded: these are the readings from the moment the
- * node stopped, which is exactly what you look at when working out why. The
- * colour stays above the 4.5:1 contrast floor. Tags and buttons keep their own
- * colours — status and the remove action are how you act on the row. */
-.ant-table-tbody > tr.rp-node-offline > td {
-  background: var(--rp-node-offline-bg);
-  color: var(--rp-node-offline-text);
+.ant-table-thead > tr > th {
+  padding-block: 13px !important;
+  color: #5d6b80 !important;
+  font-size: 12px;
+  font-weight: 650 !important;
+  letter-spacing: 0.025em;
+  background: #f7f9fd !important;
+  border-bottom-color: var(--rp-border) !important;
 }
-/* The progress fill is the loudest "live" signal on the row: a green CPU bar
- * reads as healthy right now. Neutralise the threshold colour — the exact
- * percentage is still in the tooltip.
- *
- * .ant-progress-track is antd v6's name for the filled part (v5 called it
- * .ant-progress-bg). !important is required, not defensive: strokeColor lands
- * as an inline `background` on that element. */
+
+.ant-table-tbody > tr > td {
+  padding-block: 14px !important;
+  border-bottom-color: #edf1f6 !important;
+  transition: background 0.18s ease;
+}
+
+.ant-table-tbody > tr:last-child > td {
+  border-bottom: 0 !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f5f8ff !important;
+}
+
+.ant-table-cell .ant-btn-link {
+  height: 30px;
+  padding-inline: 8px;
+}
+
+.ant-table-placeholder .ant-empty {
+  margin-block: 44px;
+}
+
+/* Forms and controls */
+.ant-form-item-label > label {
+  color: var(--rp-text-secondary) !important;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select-selector,
+.ant-cascader-picker,
+.ant-mentions,
+.ant-segmented {
+  border-radius: var(--rp-radius-sm) !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select-selector {
+  border-color: var(--rp-border-strong) !important;
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-input-number:hover,
+.ant-picker:hover,
+.ant-select:hover .ant-select-selector {
+  border-color: #9daefa !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--rp-primary) !important;
+  box-shadow: 0 0 0 3px rgba(79, 109, 245, 0.13) !important;
+}
+
+.ant-input-group-addon,
+.ant-input-number-group-addon {
+  color: var(--rp-text-secondary);
+  border-color: var(--rp-border-strong) !important;
+  background: #f5f7fb !important;
+}
+
+.ant-segmented {
+  padding: 3px;
+  background: #edf1f7;
+}
+
+.ant-segmented-item-selected {
+  box-shadow: 0 3px 10px rgba(29, 45, 73, 0.1) !important;
+}
+
+/* Buttons and feedback */
+.ant-btn {
+  border-radius: var(--rp-radius-sm);
+  font-size: 13px;
+  font-weight: 550;
+  box-shadow: none;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease,
+    box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.ant-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.ant-btn-primary {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #5873f6, #425fe7) !important;
+  box-shadow: 0 7px 16px rgba(79, 109, 245, 0.23) !important;
+}
+
+.ant-btn-primary:not(:disabled):hover {
+  background: linear-gradient(135deg, #6680ff, #4a68ed) !important;
+  box-shadow: 0 9px 21px rgba(79, 109, 245, 0.3) !important;
+}
+
+.ant-btn-default {
+  border-color: var(--rp-border-strong);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.ant-tag {
+  margin-inline-end: 5px;
+  padding-inline: 8px;
+  line-height: 22px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.ant-alert {
+  border-radius: 13px;
+}
+
+.ant-badge-status-text {
+  color: var(--rp-text-secondary) !important;
+}
+
+.ant-progress-inner {
+  background: #e9eef5 !important;
+}
+
+/* Navigation and secondary data components */
+.ant-tabs-nav::before {
+  border-bottom-color: var(--rp-border) !important;
+}
+
+.ant-tabs-tab {
+  padding-block: 12px !important;
+  color: var(--rp-text-secondary);
+  font-weight: 550;
+}
+
+.ant-tabs-ink-bar {
+  height: 3px !important;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(90deg, var(--rp-primary), var(--rp-cyan)) !important;
+}
+
+.ant-pagination-item,
+.ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination-next .ant-pagination-item-link {
+  border-radius: 9px !important;
+}
+
+.ant-pagination-item-active {
+  box-shadow: 0 4px 12px rgba(79, 109, 245, 0.15);
+}
+
+.ant-descriptions-bordered .ant-descriptions-item-label {
+  color: var(--rp-text-secondary) !important;
+  font-weight: 600;
+  background: #f7f9fc !important;
+}
+
+.ant-list-item {
+  border-block-end-color: var(--rp-border) !important;
+}
+
+.ant-collapse {
+  overflow: hidden;
+  border-color: var(--rp-border) !important;
+  border-radius: var(--rp-radius) !important;
+  background: #fff !important;
+}
+
+.ant-collapse-header {
+  font-weight: 600;
+}
+
+.ant-empty-description {
+  color: var(--rp-text-tertiary) !important;
+}
+
+/* Floating layers */
+.ant-modal-content,
+.ant-drawer-content,
+.ant-dropdown-menu,
+.ant-popover-inner,
+.ant-select-dropdown,
+.ant-picker-dropdown .ant-picker-panel-container {
+  border: 1px solid rgba(222, 229, 239, 0.92);
+  border-radius: var(--rp-radius) !important;
+  box-shadow: var(--rp-shadow-float) !important;
+}
+
+.ant-modal-content {
+  overflow: hidden;
+  padding: 22px !important;
+}
+
+.ant-modal-header {
+  margin-bottom: 20px !important;
+}
+
+.ant-modal-title {
+  color: var(--rp-text) !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+}
+
+.ant-drawer-header {
+  border-bottom-color: var(--rp-border) !important;
+}
+
+.ant-dropdown-menu,
+.ant-select-dropdown {
+  padding: 7px !important;
+}
+
+.ant-dropdown-menu-item,
+.ant-select-item {
+  border-radius: 9px !important;
+}
+
+.ant-message-notice-content,
+.ant-notification-notice {
+  border: 1px solid rgba(222, 229, 239, 0.88);
+  border-radius: 13px !important;
+  box-shadow: var(--rp-shadow-float) !important;
+}
+
+.ant-tooltip-inner {
+  border-radius: 9px !important;
+}
+
+/* Authentication and status pages */
+.rp-auth-page {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  padding: 44px 24px;
+  background:
+    linear-gradient(145deg, rgba(5, 17, 36, 0.96), rgba(12, 31, 60, 0.94)),
+    #081426;
+}
+
+.rp-auth-page::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, #000, transparent 78%);
+}
+
+.rp-auth-orb {
+  position: absolute;
+  width: 430px;
+  height: 430px;
+  border-radius: 50%;
+  filter: blur(18px);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.rp-auth-orb-one {
+  top: -210px;
+  left: -125px;
+  background: radial-gradient(circle, #5875ff, transparent 68%);
+}
+
+.rp-auth-orb-two {
+  right: -175px;
+  bottom: -245px;
+  background: radial-gradient(circle, #20bcd7, transparent 68%);
+}
+
+.rp-auth-card.ant-card {
+  z-index: 1;
+  width: min(100%, 440px);
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.72) !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 35px 90px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(20px);
+}
+
+.rp-auth-card:hover {
+  transform: none;
+  box-shadow: 0 35px 90px rgba(0, 0, 0, 0.32);
+}
+
+.rp-auth-card .ant-card-body {
+  padding: 36px 38px 34px;
+}
+
+.rp-auth-heading {
+  position: relative;
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.rp-auth-heading .ant-typography {
+  margin-bottom: 0 !important;
+  color: var(--rp-text);
+  letter-spacing: -0.03em;
+}
+
+.rp-auth-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 17px;
+  color: #fff;
+  font-size: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 17px;
+  background: linear-gradient(135deg, #607aff, #28bed7);
+  box-shadow: 0 13px 28px rgba(79, 109, 245, 0.3);
+}
+
+.rp-auth-form .ant-input-affix-wrapper,
+.rp-auth-form .ant-input {
+  min-height: 44px;
+}
+
+.rp-auth-form .ant-btn {
+  min-height: 44px;
+}
+
+.rp-result-page {
+  display: grid;
+  min-height: calc(100vh - var(--rp-header-height) - 56px);
+  place-items: center;
+}
+
+.rp-result-page .ant-result {
+  width: min(100%, 620px);
+  padding: 48px 28px;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-radius-xl);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: var(--rp-shadow);
+}
+
+/* Domain-specific helpers */
+.rp-mono,
+.ant-typography code {
+  font-family: var(--rp-font-mono);
+  font-size: 12px;
+}
+
+.ant-typography code {
+  padding: 2px 7px;
+  color: #3f56bc;
+  border: 1px solid #dde4f5;
+  border-radius: 7px;
+  background: #f4f6fc;
+}
+
+.rp-node-throughput {
+  white-space: nowrap;
+}
+
+.ant-table-tbody > tr.rp-node-offline > td,
+.rp-node-offline-card {
+  color: var(--rp-node-offline-text);
+  background: var(--rp-node-offline-bg);
+}
+
 .rp-node-offline .ant-progress-track,
 .rp-node-offline-card .ant-progress-track {
   background: var(--rp-node-offline-bar) !important;
 }
 
-/* Same treatment for the mobile card list, which has no table rows. */
-.rp-node-offline-card {
-  background: var(--rp-node-offline-bg);
-  color: var(--rp-node-offline-text);
-}
 .rp-node-meta {
   color: var(--rp-text-secondary);
 }
+
 .rp-node-offline-card .rp-node-meta {
   color: var(--rp-node-offline-text);
 }
 
-/* Cards: clean, minimal shadow */
-.ant-card {
-  border-radius: var(--rp-radius);
-  border: 1px solid var(--rp-border);
-  box-shadow: var(--rp-shadow-sm);
-}
-.ant-card-head {
-  min-height: 44px;
-  border-bottom: 1px solid var(--rp-border);
-}
-
-/* Buttons: uniform sizing, no wrapping */
-.ant-btn {
-  border-radius: var(--rp-radius-sm);
-  font-size: 13px;
-}
-
-/* Modal */
-.ant-modal-content {
-  border-radius: var(--rp-radius);
-}
-
-/* Form labels */
-.ant-form-item-label > label {
-  font-size: 13px;
-  color: var(--rp-text-secondary);
-}
-
-/* Segmented (language switch) */
-.ant-segmented {
-  border-radius: var(--rp-radius-sm);
-}
-
-/* Code/mono text for tokens, IPs, ports */
-.ant-typography code {
-  font-family: var(--rp-font-mono);
-  font-size: 12px;
-  background: var(--rp-table-header-bg);
-  border: 1px solid var(--rp-border);
-  border-radius: var(--rp-radius-sm);
-  padding: 1px 6px;
-}
-
-/* ---- Layout helpers ---- */
-.rp-page-title {
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--rp-text);
-  margin: 0 0 16px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.rp-page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.rp-stat-card {
-  border-radius: var(--rp-radius);
-  border: 1px solid var(--rp-border);
-  box-shadow: var(--rp-shadow-sm);
-}
-.rp-stat-card .ant-statistic-title {
-  font-size: 13px;
-  color: var(--rp-text-secondary);
-}
-.rp-stat-card .ant-statistic-content {
-  font-size: 28px;
-  font-weight: 500;
-}
-
-/* Mono fields in tables */
-.rp-mono {
-  font-family: var(--rp-font-mono);
-  font-size: 12px;
-}
-
-/* Transfer values are a single measurement. Breaking between a number and its
-   unit (for example, "60.11" / "KB/s") makes the node table harder to scan.
-   The desktop table already supplies horizontal scrolling for narrower views. */
-.rp-node-throughput {
-  white-space: nowrap;
-}
-
-/* v0.4.17: country-flag pill wrapper. Outer layer sizes & rounds the slot;
- *  the inner .fi (from flag-icons) is pinned to a fixed flag size so the
- *  library's own .fi rules never disturb the surrounding table layout. */
 .country-flag-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
+  min-width: 42px;
   height: 28px;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: #eee7ff;
-  font-size: 12px;
+  padding: 0 7px;
   color: var(--rp-text-secondary);
   vertical-align: middle;
+  border: 1px solid #e0e6f5;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #f3f5ff, #eaf1ff);
 }
+
 .country-flag-pill .fi {
   width: 20px;
   height: 14px;
@@ -243,24 +799,96 @@ html, body, #root {
   background-size: cover;
 }
 
-/* v1.2.3: give the forwarding tab one field width.
-
-   The four controls there used to disagree. 负载策略 and 最大连接数 are a
-   plain Select / InputNumber, so width:100% made them span the form (572px
-   in the 620px dialog). 限速 and 自动重启间隔 carry addons (上行/下行, Mbps,
-   分钟) and antd wraps those in a Space.Compact group — width:100% then
-   applies to the number box INSIDE the group, leaving the group sized to its
-   content (~252px). Two long rows and two short ones in the same column.
-
-   All four are now 252: the addon groups keep their natural size and the two
-   plain controls are capped to match (their cap is inline, on the component).
-   A rule name or a strategy dropdown does not need half the dialog anyway.
-
-   Scoped to the rule dialogs and to addon groups only, so nothing else moves:
-   the basic tab stays full-width, and the targets row keeps its explicit
-   widths (address 320, port 110) — which is what keeps that row on one line. */
 .rp-rule-form .ant-form-item-control-input-content .ant-space-compact,
 .rp-rule-form .ant-form-item-control-input-content .ant-input-number-group-wrapper {
   width: 100%;
   max-width: 252px;
+}
+
+/* Responsive polish */
+@media (max-width: 1100px) {
+  :root {
+    --rp-content-padding: 22px;
+  }
+
+  .rp-topbar.ant-layout-header {
+    padding-inline: 22px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --rp-header-height: 60px;
+    --rp-content-padding: 14px;
+  }
+
+  .rp-sidebar.ant-layout-sider {
+    box-shadow: 10px 0 35px rgba(8, 20, 38, 0.2);
+  }
+
+  .rp-topbar.ant-layout-header {
+    padding-inline: 14px;
+  }
+
+  .rp-topbar-actions {
+    border: 0;
+    background: transparent;
+  }
+
+  .rp-content-inner {
+    min-height: calc(100vh - var(--rp-header-height) - 28px);
+  }
+
+  .rp-page-header {
+    align-items: stretch;
+    flex-direction: column;
+    margin-bottom: 15px;
+    gap: 12px;
+  }
+
+  .rp-page-header > .ant-space {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .rp-page-title {
+    font-size: 19px;
+  }
+
+  .ant-card-body {
+    padding: 16px;
+  }
+
+  .ant-card-head {
+    padding-inline: 16px !important;
+  }
+
+  .ant-modal-content {
+    padding: 18px !important;
+  }
+
+  .rp-auth-page {
+    padding: 28px 16px;
+  }
+
+  .rp-auth-card .ant-card-body {
+    padding: 29px 23px 25px;
+  }
+
+  .rp-auth-mark {
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

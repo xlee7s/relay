@@ -20,9 +20,8 @@ pub const MAX_SUBTITLE: usize = 128;
 pub const MAX_ANNOUNCEMENT: usize = 4000;
 pub const MAX_CONTACT: usize = 256;
 
-/// Falls back to the current hardcoded brand, so an operator who never opens
-/// the page sees exactly what they saw before.
-pub const DEFAULT_NAME: &str = "RelayPanel";
+/// Default brand shown until an operator configures a custom site name.
+pub const DEFAULT_NAME: &str = "relay";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]

@@ -1,5 +1,5 @@
-import { Form, Input, Button, Card, message, Typography, Segmented, Result, Spin, Select } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Typography, Result, Spin, Select } from 'antd';
+import { ApiOutlined, UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import api from '../api/client';
@@ -16,7 +16,7 @@ const { Title, Text } = Typography;
  *  automatically. plan_id is submitted with the registration request. */
 export default function Register() {
   const navigate = useNavigate();
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const [status, setStatus] = useState<RegistrationStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -77,23 +77,12 @@ export default function Register() {
   const plans: Plan[] = status?.plans ?? [];
 
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'center', alignItems: 'center',
-      minHeight: '100vh', background: 'var(--rp-bg)',
-    }}>
-      <div style={{ position: 'absolute', top: 20, right: 24 }}>
-        <Segmented
-          size="small"
-          value={lang}
-          onChange={(v) => setLang(v as 'zh-CN' | 'en-US')}
-          options={[
-            { value: 'zh-CN', label: t('langZhCN') },
-            { value: 'en-US', label: t('langEnUS') },
-          ]}
-        />
-      </div>
-      <Card style={{ width: 380, boxShadow: 'var(--rp-shadow)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+    <div className="rp-auth-page">
+      <div className="rp-auth-orb rp-auth-orb-one" />
+      <div className="rp-auth-orb rp-auth-orb-two" />
+      <Card className="rp-auth-card">
+        <div className="rp-auth-heading">
+          <div className="rp-auth-mark"><ApiOutlined /></div>
           <Title level={3} style={{ margin: 0, fontWeight: 600 }}>{t('registerTitle')}</Title>
           <Text type="secondary" style={{ fontSize: 13 }}>{t('subtitle')}</Text>
         </div>
@@ -107,7 +96,7 @@ export default function Register() {
         ) : status === null ? (
           <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
         ) : (
-          <Form onFinish={onFinish} size="large">
+          <Form onFinish={onFinish} size="large" className="rp-auth-form">
             <Form.Item
               name="username"
               rules={[{ required: true, message: t('usernameRequired') }]}

@@ -1,30 +1,3 @@
-<p align="center">
-  <img src="frontend/public/favicon.svg" width="80" height="80" alt="RelayPanel Logo" />
-</p>
-
-<h1 align="center">RelayPanel</h1>
-
-<p align="center">
-  ⚡ 自托管 TCP/UDP 端口转发管理面板 ⚡
-</p>
-
-<p align="center">
-  <a href="README.en.md">English</a> | <strong>中文</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/xlee7s/relay/releases/latest"><img src="https://img.shields.io/github/v/release/xlee7s/relay?style=flat-square&label=Release&color=blue" alt="Release" /></a>
-  <a href="https://github.com/xlee7s/relay/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/xlee7s/relay/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/xlee7s/relay?style=flat-square&label=License&color=blue" alt="License" /></a>
-</p>
-
-<p align="center">
-  用 Rust 编写,通过 Web UI 管理转发规则、设备分组、流量配额和实时节点状态。<br/>
-  轻量：Panel + Node。部署方式：Docker Compose。数据库：MySQL 5.7。
-</p>
-
----
-
 ## ✨ 功能亮点
 
 - 🔀 **转发规则** — TCP/UDP 多目标转发，故障转移 / 轮询负载均衡，目标熔断自动恢复，域名目标跟随 DDNS
@@ -35,8 +8,6 @@
 - 👤 **用户与分组** — 管理任意用户的规则与套餐、重置流量密码、封禁；设备分组可隐藏，节点卸载不影响规则
 - 🗄️ **部署友好** — 内置 MySQL 5.7 Compose 服务；面板与节点均支持 amd64 / arm64
 - 🔒 **安全** — 首次登录强制改密码，节点 Bearer Token 鉴权
-
-完整功能说明与使用文档：**[项目文档](docs/DEPLOYMENT.md)**
 
 ---
 
@@ -49,10 +20,6 @@ curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | ba
 ```
 
 > 🔑 **默认账号 `admin` / `admin123`，首次登录强制修改密码。**
-
-📖 完整指南：**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
-
-> 仓库所有者首次部署前，需要先发布 GHCR 镜像。建仓、推送和首次镜像发布步骤见 **[仓库初始化指南](docs/REPOSITORY-SETUP.md)**。
 
 ---
 
@@ -84,28 +51,39 @@ cd /opt/relay && git pull --quiet && ./deploy.sh
 
 ---
 
-## 🛠️ 本地开发
+## 🗑️ 卸载
+
+### 卸载面板端
+
+以下命令会停止并删除面板、MySQL 和可选的节点/Caddy 容器，同时移除面板一键更新服务：
 
 ```bash
-cargo build && cargo run -p relay-panel &   # API 在 :18888
-cd frontend && npm install && npm run dev   # UI 在 :5173
-python3 tests/e2e_test.py                   # 端到端测试
+cd /opt/relay
+docker compose -f docker-compose.release.yaml --profile node --profile caddy down --remove-orphans
+systemctl disable --now relaypanel-updater.path relaypanel-updater.service 2>/dev/null || true
+rm -f /etc/systemd/system/relaypanel-updater.path /etc/systemd/system/relaypanel-updater.service
+systemctl daemon-reload
+cd /
+rm -rf /opt/relay
 ```
 
----
+上面的命令默认保留 Docker 中的 MySQL 数据卷。确认不再需要数据库数据时，再执行：
 
-## 📦 技术栈
+```bash
+docker volume rm relay_mysql_data
+```
 
-Rust · Axum · Tokio · sqlx · MySQL 5.7 · JWT · React 19 · TypeScript · Ant Design · Docker Compose
+> ⚠️ 删除 `relay_mysql_data` 后，用户、规则、套餐和所有面板数据都无法恢复，请先备份数据库。
 
----
+### 卸载节点端
 
-## 📄 许可证与免责声明
+默认服务名为 `relay-node`，卸载命令如下：
 
-Apache-2.0 —— 详见 [LICENSE](LICENSE)。
+```bash
+systemctl disable --now relay-node
+rm -f /etc/systemd/system/relay-node.service
+systemctl daemon-reload
+rm -rf /opt/relay-node
+```
 
-本仓库基于 [MoeShinX/relay-panel](https://github.com/MoeShinX/relay-panel) 二次开发，原项目版权及 Apache-2.0 许可声明予以保留。
-
-开源流量转发工具，**仅供个人学习与研究使用**。请在合法合规前提下使用，风险自负。
-
-完整 **[免责声明](docs/DISCLAIMER.md)**
+如果安装节点时通过 `--service-name` 指定了其他名称，请将命令中的 `relay-node` 替换为对应名称。

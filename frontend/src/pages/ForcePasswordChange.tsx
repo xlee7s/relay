@@ -1,5 +1,5 @@
 import { Form, Input, Button, Card, message, Typography, Alert } from 'antd';
-import { LockOutlined } from '@ant-design/icons';
+import { ApiOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import api from '../api/client';
@@ -52,12 +52,12 @@ export default function ForcePasswordChange() {
   };
 
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'center', alignItems: 'center',
-      minHeight: '100vh', background: 'var(--rp-bg)',
-    }}>
-      <Card style={{ width: 400, boxShadow: 'var(--rp-shadow)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+    <div className="rp-auth-page">
+      <div className="rp-auth-orb rp-auth-orb-one" />
+      <div className="rp-auth-orb rp-auth-orb-two" />
+      <Card className="rp-auth-card">
+        <div className="rp-auth-heading">
+          <div className="rp-auth-mark"><ApiOutlined /></div>
           <Title level={4} style={{ margin: 0 }}>{t('forcePasswordChange')}</Title>
         </div>
         <Alert

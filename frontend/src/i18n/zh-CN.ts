@@ -1,6 +1,6 @@
 export const zhCN = {
   // Brand
-  brand: 'RelayPanel',
+  brand: 'relay',
   subtitle: 'TCP/UDP 转发管理',
 
   // Login
@@ -384,10 +384,6 @@ export const zhCN = {
   systemUptimeShort: '系统',
   processUptimeShort: '进程',
 
-  // Language switcher
-  langZhCN: '中文',
-  langEnUS: 'English',
-
   // Edit / update
   editGroup: '编辑分组',
   editRule: '编辑规则',
@@ -696,7 +692,7 @@ export const zhCN = {
   // ── v1.2.4: 站点设置 ──
   siteSettings: '站点设置',
   siteName: '站点名称',
-  siteNameHint: '显示在登录页、左侧边栏和浏览器标签标题。留空则使用 RelayPanel。',
+  siteNameHint: '显示在登录页、左侧边栏和浏览器标签标题。留空则使用 relay。',
   siteSubtitle: '副标题',
   siteSubtitleHint: '登录页站点名称下方的小字。留空则使用默认文案。',
   siteAnnouncement: '公告',

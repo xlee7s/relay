@@ -11,7 +11,7 @@ vi.mock('../api/client', () => ({
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock('../auth/useAuth', () => ({ useAuth: mockUseAuth }));
 
-import Groups from './Groups';
+import Groups, { buildInstallCommand } from './Groups';
 
 const ok = <T,>(data: T) => ({ code: 0, message: 'ok', data });
 
@@ -33,6 +33,14 @@ beforeEach(() => {
     if (url === '/groups') return Promise.resolve(ok([group()]));
     return Promise.resolve(ok([]));
   });
+});
+
+it('runs BBR tuning before installing and enrolling the node', () => {
+  expect(buildInstallCommand('node-token', 'https://panel.example.com')).toBe(
+    'bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/bbr.sh) && ' +
+    'bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/scripts/relay-node-install.sh) ' +
+    '-t node-token -u https://panel.example.com',
+  );
 });
 
 // ── A failed read reports `code: 500` with `data: null` inside a 200 response,
