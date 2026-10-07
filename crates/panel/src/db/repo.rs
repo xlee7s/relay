@@ -4,8 +4,8 @@
 // access contract. The aggregate `Repository` trait combines them so handlers
 // take a single `Arc<dyn Repository>` dependency.
 //
-// PR1: only SqliteRepository implements these traits. PR2 will add
-// PgRepository (PostgreSQL) implementing the same traits.
+// MySqlRepository is the production implementation. SqliteRepository is kept
+// behind `cfg(test)` for fast isolated unit tests.
 //
 // Design principles:
 //   - Methods return domain models (User, ForwardRule, ...) — no DB types leak.
@@ -18,7 +18,7 @@
 // dead_code: some trait methods in this module are part of the contract but
 // not yet wired to a handler in PR1 (e.g. increment_user_traffic,
 // delete_rules_by_uid). They're reachable through the trait object and will be
-// used by future callers / PgRepository parity tests; silence the lints rather
+// used by future callers and backend integration tests; silence the lints rather
 // than delete the contract.
 #![allow(dead_code)]
 
@@ -366,7 +366,7 @@ pub trait RuleRepository: Send + Sync {
     /// won the race.
     ///
     /// Concurrency: SQLite uses BEGIN IMMEDIATE (acquire the write lock up
-    /// front); PostgreSQL takes a per-group advisory xact lock plus the
+    /// front); MySQL serializes owner/quota changes with InnoDB row locks and
     /// existing user-row FOR UPDATE quota lock.
     #[allow(clippy::too_many_arguments)]
     async fn insert_quota_guarded(

@@ -1,4 +1,4 @@
-use super::PgRepository;
+use super::MySqlRepository;
 use crate::db::error::DbError;
 use crate::db::repo::*;
 use async_trait::async_trait;
@@ -7,7 +7,7 @@ use relay_shared::models::TunnelProfile;
 // ── TunnelProfileRepository ──
 
 #[async_trait]
-impl TunnelProfileRepository for PgRepository {
+impl TunnelProfileRepository for MySqlRepository {
     async fn list_profiles(&self, scope: &ProfileScope) -> Result<Vec<TunnelProfile>, DbError> {
         let profiles: Vec<TunnelProfile> = match scope {
             ProfileScope::All => sqlx::query_as("SELECT * FROM tunnel_profiles ORDER BY id"),
@@ -22,7 +22,7 @@ impl TunnelProfileRepository for PgRepository {
             // Used by admin management page.
             ProfileScope::ManageableCustomTemplates => sqlx::query_as(
                 "SELECT * FROM tunnel_profiles
-                     WHERE is_builtin = FALSE AND transport IN ('ws', 'tls_simple')
+                     WHERE is_builtin = 0 AND transport IN ('ws', 'tls_simple')
                      ORDER BY id",
             ),
         }
@@ -36,10 +36,12 @@ impl TunnelProfileRepository for PgRepository {
         id: i64,
         scope: &ResourceScope,
     ) -> Result<Option<bool>, DbError> {
+        // Read-only guard for builtin profiles (seeded by Migration 6). The
+        // caller translates Some(true) → 400 "cannot edit builtin", None → 404.
         let row: Option<(bool,)> = match scope.owner_id() {
-            None => sqlx::query_as("SELECT is_builtin FROM tunnel_profiles WHERE id = $1").bind(id),
+            None => sqlx::query_as("SELECT is_builtin FROM tunnel_profiles WHERE id = ?").bind(id),
             Some(uid) => {
-                sqlx::query_as("SELECT is_builtin FROM tunnel_profiles WHERE id = $1 AND uid = $2")
+                sqlx::query_as("SELECT is_builtin FROM tunnel_profiles WHERE id = ? AND uid = ?")
                     .bind(id)
                     .bind(uid)
             }
@@ -50,8 +52,10 @@ impl TunnelProfileRepository for PgRepository {
     }
 
     async fn find_by_name(&self, name: &str) -> Result<Option<TunnelProfile>, DbError> {
+        // Used by INSERT-then-SELECT-by-name to return the freshly created row
+        // to the caller. Name is unique (UNIQUE constraint in the schema).
         let profile: Option<TunnelProfile> =
-            sqlx::query_as("SELECT * FROM tunnel_profiles WHERE name = $1")
+            sqlx::query_as("SELECT * FROM tunnel_profiles WHERE name = ?")
                 .bind(name)
                 .fetch_optional(&self.pool)
                 .await?;
@@ -65,18 +69,18 @@ impl TunnelProfileRepository for PgRepository {
     ) -> Result<Option<TunnelProfile>, DbError> {
         let profile: Option<TunnelProfile> = match scope {
             ProfileScope::All => {
-                sqlx::query_as("SELECT * FROM tunnel_profiles WHERE id = $1").bind(id)
+                sqlx::query_as("SELECT * FROM tunnel_profiles WHERE id = ?").bind(id)
             }
             // v0.4.11 PR1: available templates for rule selection = ws/tls_simple.
             ProfileScope::AvailableTemplates => sqlx::query_as(
                 "SELECT * FROM tunnel_profiles
-                     WHERE id = $1 AND transport IN ('ws', 'tls_simple')",
+                     WHERE id = ? AND transport IN ('ws', 'tls_simple')",
             )
             .bind(id),
             // v0.4.11 PR1: manageable custom templates = is_builtin=false, ws/tls_simple.
             ProfileScope::ManageableCustomTemplates => sqlx::query_as(
                 "SELECT * FROM tunnel_profiles
-                     WHERE id = $1 AND is_builtin = FALSE AND transport IN ('ws', 'tls_simple')",
+                     WHERE id = ? AND is_builtin = 0 AND transport IN ('ws', 'tls_simple')",
             )
             .bind(id),
         }
@@ -92,11 +96,11 @@ impl TunnelProfileRepository for PgRepository {
     ) -> Result<i64, DbError> {
         let (n,): (i64,) = match scope.owner_id() {
             None => {
-                sqlx::query_as("SELECT COUNT(*) FROM forward_rules WHERE tunnel_profile_id = $1")
+                sqlx::query_as("SELECT COUNT(*) FROM forward_rules WHERE tunnel_profile_id = ?")
                     .bind(profile_id)
             }
             Some(uid) => sqlx::query_as(
-                "SELECT COUNT(*) FROM forward_rules WHERE tunnel_profile_id = $1 AND uid = $2",
+                "SELECT COUNT(*) FROM forward_rules WHERE tunnel_profile_id = ? AND uid = ?",
             )
             .bind(profile_id)
             .bind(uid),
@@ -113,11 +117,11 @@ impl TunnelProfileRepository for PgRepository {
     ) -> Result<Vec<String>, DbError> {
         let rows: Vec<(String,)> = match scope.owner_id() {
             None => {
-                sqlx::query_as("SELECT protocol FROM forward_rules WHERE tunnel_profile_id = $1")
+                sqlx::query_as("SELECT protocol FROM forward_rules WHERE tunnel_profile_id = ?")
                     .bind(profile_id)
             }
             Some(uid) => sqlx::query_as(
-                "SELECT protocol FROM forward_rules WHERE tunnel_profile_id = $1 AND uid = $2",
+                "SELECT protocol FROM forward_rules WHERE tunnel_profile_id = ? AND uid = ?",
             )
             .bind(profile_id)
             .bind(uid),
@@ -137,12 +141,11 @@ impl TunnelProfileRepository for PgRepository {
         sni: &str,
         uid: i64,
     ) -> Result<(), DbError> {
-        // is_builtin=FALSE: user-created profiles are always mutable (same as
-        // SQLite's literal 0).
+        // is_builtin=0: user-created profiles are always mutable.
         sqlx::query(
             "INSERT INTO tunnel_profiles \
                 (name, transport, tls_mode, ws_path, host_header, sni, is_builtin, uid) \
-             VALUES ($1, $2, $3, $4, $5, $6, FALSE, $7)",
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
         )
         .bind(name)
         .bind(transport)
@@ -169,53 +172,38 @@ impl TunnelProfileRepository for PgRepository {
     ) -> Result<u64, DbError> {
         let mut sets: Vec<&str> = Vec::new();
         if name.is_some() {
-            sets.push("name = ");
+            sets.push("name = ?");
         }
         if transport.is_some() {
-            sets.push("transport = ");
+            sets.push("transport = ?");
         }
         if tls_mode.is_some() {
-            sets.push("tls_mode = ");
+            sets.push("tls_mode = ?");
         }
         if ws_path.is_some() {
-            sets.push("ws_path = ");
+            sets.push("ws_path = ?");
         }
         if host_header.is_some() {
-            sets.push("host_header = ");
+            sets.push("host_header = ?");
         }
         if sni.is_some() {
-            sets.push("sni = ");
+            sets.push("sni = ?");
         }
 
         if sets.is_empty() {
             return Ok(0);
         }
 
-        let mut ph = 1;
-        let sets_with_ph: Vec<String> = sets
-            .iter()
-            .map(|s| {
-                let p = format!("{s}${ph}");
-                ph += 1;
-                p
-            })
-            .collect();
-        let id_ph = ph;
-        let uid_ph = ph + 1;
         let sql = match scope.owner_id() {
             None => format!(
-                "UPDATE tunnel_profiles SET {} WHERE id = ${}",
-                sets_with_ph.join(", "),
-                id_ph
+                "UPDATE tunnel_profiles SET {} WHERE id = ?",
+                sets.join(", ")
             ),
             Some(_) => format!(
-                "UPDATE tunnel_profiles SET {} WHERE id = ${} AND uid = ${}",
-                sets_with_ph.join(", "),
-                id_ph,
-                uid_ph
+                "UPDATE tunnel_profiles SET {} WHERE id = ? AND uid = ?",
+                sets.join(", ")
             ),
         };
-
         let mut q = sqlx::query(&sql);
         if let Some(v) = name {
             q = q.bind(v);
@@ -246,8 +234,8 @@ impl TunnelProfileRepository for PgRepository {
 
     async fn delete_profile(&self, id: i64, scope: &ResourceScope) -> Result<u64, DbError> {
         let result = match scope.owner_id() {
-            None => sqlx::query("DELETE FROM tunnel_profiles WHERE id = $1").bind(id),
-            Some(uid) => sqlx::query("DELETE FROM tunnel_profiles WHERE id = $1 AND uid = $2")
+            None => sqlx::query("DELETE FROM tunnel_profiles WHERE id = ?").bind(id),
+            Some(uid) => sqlx::query("DELETE FROM tunnel_profiles WHERE id = ? AND uid = ?")
                 .bind(id)
                 .bind(uid),
         }

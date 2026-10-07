@@ -16,6 +16,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify:
+    name: Verify MySQL 5.7 backend
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_DATABASE: relaytest
+          MYSQL_USER: relaytest
+          MYSQL_PASSWORD: relaytest
+          MYSQL_ROOT_PASSWORD: relayroot
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -prelayroot --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_MYSQL_URL: mysql://relaytest:relaytest@127.0.0.1:3306/relaytest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup show
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Compile and run MySQL 5.7 smoke test
+        run: cargo test -p relay-panel db::mysql_repo::tests::mysql_57_schema_and_repository_smoke -- --exact
+
   build:
     name: Build ${{ matrix.service }} (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -83,7 +112,7 @@ jobs:
 
   publish:
     name: Publish ${{ matrix.service }} manifest
-    needs: build
+    needs: [build, verify]
     runs-on: ubuntu-latest
     strategy:
       matrix:

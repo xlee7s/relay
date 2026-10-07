@@ -7,10 +7,9 @@ mod service;
 
 use axum::Router;
 use config::Config;
-use db::init::{init_db, init_pg, is_postgres_url};
-use db::pg_repo::PgRepository;
+use db::init::{init_mysql, is_mysql_url};
+use db::mysql_repo::MySqlRepository;
 use db::repo::Repository;
-use db::sqlite_repo::SqliteRepository;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -52,7 +51,8 @@ async fn main() {
     // very first boot. insert_settings_if_absent is a no-op once the row
     // exists, so the env var can NEVER re-enable registration after an admin
     // turns it off — only the admin PUT endpoint mutates the row afterwards.
-    // This runs through the Repository trait so SQLite + PG share one path.
+    // This runs through the Repository trait so configuration seeding remains
+    // independent of HTTP startup.
     db.insert_settings_if_absent(config.registration_enabled, 1, &[1])
         .await
         .expect("Failed to seed app settings");
@@ -160,31 +160,13 @@ async fn main() {
 /// Shared by the server path and the CLI subcommands so they can never
 /// diverge on which database they touch.
 async fn open_database(config: &Config) -> Arc<dyn Repository> {
-    // v0.4.3: backend is chosen at startup by the database_url prefix and is
-    // fixed for the process lifetime — NO runtime switching, NO fallback. If
-    // the URL is a PostgreSQL DSN, we init PG; anything else (including the
-    // default SQLite file path) inits SQLite.
-    //
-    // Fail-fast contract: a configured PG backend that can't connect MUST
-    // terminate startup. Falling back to SQLite would silently write data
-    // locally while the user believes it's in PG — strictly worse than a crash.
-    // The `?` in init_db/init_pg propagates errors to `.expect()`, which panics
-    // and exits with a non-zero status. No `unwrap_or_else(fallback)` branch.
-    if is_postgres_url(&config.database_path) {
-        tracing::info!("database backend: PostgreSQL");
-        let pool = init_pg(&config.database_path)
-            .await
-            .expect("Failed to initialize PostgreSQL database");
-        Arc::new(PgRepository::new(pool))
-    } else {
-        if config.database_path == "sqlite::memory:" || config.database_path.is_empty() {
-            tracing::info!("database backend: SQLite (in-memory / default)");
-        } else {
-            tracing::info!("database backend: SQLite ({})", config.database_path);
-        }
-        let pool = init_db(&config.database_path)
-            .await
-            .expect("Failed to initialize SQLite database");
-        Arc::new(SqliteRepository::new(pool))
+    if !is_mysql_url(&config.database_path) {
+        eprintln!("FATAL: DATABASE_URL must be a mysql:// URL (MySQL 5.7)");
+        std::process::exit(1);
     }
+    tracing::info!("database backend: MySQL 5.7");
+    let pool = init_mysql(&config.database_path)
+        .await
+        .expect("Failed to initialize MySQL database");
+    Arc::new(MySqlRepository::new(pool))
 }

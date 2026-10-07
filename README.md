@@ -20,7 +20,7 @@
 
 <p align="center">
   用 Rust 编写,通过 Web UI 管理转发规则、设备分组、流量配额和实时节点状态。<br/>
-  轻量：Panel ~7 MB + Node ~4 MB。部署方式：Docker Compose。数据库：SQLite / PostgreSQL。
+  轻量：Panel + Node。部署方式：Docker Compose。数据库：MySQL 5.7。
 </p>
 
 ---
@@ -33,7 +33,7 @@
 - 📊 **流量可视** — 按规则 / 用户计量，近 1 / 7 / 30 天趋势图按线路分色堆叠，看得出是哪条线路在吃额度
 - 🖥️ **节点管理** — 实时 CPU / 内存 / 连接数、地区识别、掉线推送 Telegram 或邮件、面板一键升级节点（免 SSH）
 - 👤 **用户与分组** — 管理任意用户的规则与套餐、重置流量密码、封禁；设备分组可隐藏，节点卸载不影响规则
-- 🗄️ **部署友好** — SQLite（零配置）或 PostgreSQL；面板与节点均支持 amd64 / arm64
+- 🗄️ **部署友好** — 内置 MySQL 5.7 Compose 服务；面板与节点均支持 amd64 / arm64
 - 🔒 **安全** — 首次登录强制改密码，节点 Bearer Token 鉴权
 
 完整功能说明与使用文档：**[项目文档](docs/DEPLOYMENT.md)**
@@ -65,14 +65,14 @@ curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | ba
    relay-panel  ◄─── WebSocket 配置推送 + HTTP 状态上报
    (Axum API)                     │
        │                          ▼
-   SQLite / PG              转发流量到真实目标
+   MySQL 5.7                转发流量到真实目标
 ```
 
 ---
 
 ## 🔄 更新
 
-**面板**：有新版本时，在仪表盘点「马上更新」即可，无需 SSH。使用 SQLite 时会先自动备份数据库到 `backups/`（保留最近 5 份，手动运行 `./deploy.sh` 升级也一样）；使用 PostgreSQL 请先自行备份。更新期间面板约半分钟打不开，节点转发不受影响。
+**面板**：有新版本时，在仪表盘点「马上更新」即可，无需 SSH。更新前会通过 `mysqldump --single-transaction` 自动备份到 `backups/`（保留最近 5 份）。更新期间面板约半分钟打不开，节点转发不受影响。
 
 一键更新依赖服务器上的更新服务，它会在手动更新时装好。所以 **v1.2.10 及更早版本需要先手动更新一次**，之后就能一键更新（更新前请备份 `.env` 和数据库）：
 
@@ -96,7 +96,7 @@ python3 tests/e2e_test.py                   # 端到端测试
 
 ## 📦 技术栈
 
-Rust · Axum · Tokio · sqlx · SQLite/PostgreSQL · JWT · React 19 · TypeScript · Ant Design · Docker Compose
+Rust · Axum · Tokio · sqlx · MySQL 5.7 · JWT · React 19 · TypeScript · Ant Design · Docker Compose
 
 ---
 

@@ -64,17 +64,10 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Self {
-        // v0.4.3: DATABASE_URL is the canonical env var; DATABASE_PATH is a
-        // legacy fallback for deployments created before v0.4.3.  The internal
-        // field name stays `database_path` to avoid a wider refactor.
-        //
-        // Order:
-        //   1. DATABASE_URL   (e.g. postgres://user:pass@host/db or sqlite:...)
-        //   2. DATABASE_PATH  (legacy, e.g. sqlite:/app/data/data.db?mode=rwc)
-        //   3. Default: sqlite:data.db?mode=rwc
+        // MySQL 5.7 is the only production backend. The internal field name is
+        // retained to avoid an unrelated configuration-wide rename.
         let database_path = std::env::var("DATABASE_URL")
-            .or_else(|_| std::env::var("DATABASE_PATH"))
-            .unwrap_or_else(|_| "sqlite:data.db?mode=rwc".into());
+            .unwrap_or_else(|_| "mysql://relaypanel:relaypanel@127.0.0.1:3306/relaypanel".into());
         let listen = std::env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:18888".into());
         let key = std::env::var("PANEL_KEY").unwrap_or_else(|_| "default-key".into());
         let jwt_secret =

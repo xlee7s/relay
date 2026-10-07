@@ -1,7 +1,7 @@
 // v0.4.3: Unified database error type.
 //
-// Hides the backend-specific error codes (SQLite 2067 vs PostgreSQL 23505 for
-// UNIQUE violations) behind a single enum. Handlers match on DbError variants
+// Hides backend-specific constraint codes behind a single enum. Production
+// uses MySQL; SQLite codes remain for the isolated unit-test repository.
 // instead of raw error codes, so the same handler code works on both backends.
 //
 // The `Other` variant retains the underlying sqlx::Error for logging (via
@@ -9,11 +9,11 @@
 // API client — use a generic message instead (e.g. "database error") to avoid
 // leaking schema/SQL details.
 
-/// A unified database error that abstracts over SQLite and PostgreSQL error
-/// codes. Every Repository method returns `Result<T, DbError>`.
+/// A unified repository error. Every Repository method returns
+/// `Result<T, DbError>`.
 #[derive(Debug)]
 pub enum DbError {
-    /// UNIQUE constraint violation. SQLite code "2067", PostgreSQL "23505".
+    /// UNIQUE constraint violation (MySQL 1062; SQLite test fixture 2067).
     UniqueViolation,
     /// v0.4.11 PR4: a listen_port is already occupied on the rule's inbound
     /// group by a conflicting socket type (TCP vs UDP). Distinct from
@@ -29,7 +29,7 @@ pub enum DbError {
     /// not authorized for — re-checked inside the write transaction, so an
     /// authorization revoked after the API's own check still counts.
     GroupNotAuthorized,
-    /// FOREIGN KEY constraint violation. SQLite code "787", PostgreSQL "23503".
+    /// FOREIGN KEY constraint violation (MySQL 1451/1452; SQLite fixture 787).
     ForeignKeyViolation,
     /// A required row was not found (for fetch_one-or-None patterns that are
     /// expected to succeed).
@@ -71,12 +71,12 @@ impl From<sqlx::Error> for DbError {
             match db_err.code().as_deref() {
                 // SQLite SQLITE_CONSTRAINT_UNIQUE
                 Some("2067") => return DbError::UniqueViolation,
-                // PostgreSQL SQLSTATE 23505 (unique_violation)
-                Some("23505") => return DbError::UniqueViolation,
+                // MySQL ER_DUP_ENTRY
+                Some("1062") => return DbError::UniqueViolation,
                 // SQLite SQLITE_CONSTRAINT_FOREIGNKEY
                 Some("787") => return DbError::ForeignKeyViolation,
-                // PostgreSQL SQLSTATE 23503 (foreign_key_violation)
-                Some("23503") => return DbError::ForeignKeyViolation,
+                // MySQL ER_ROW_IS_REFERENCED_2 / ER_NO_REFERENCED_ROW_2
+                Some("1451") | Some("1452") => return DbError::ForeignKeyViolation,
                 _ => {}
             }
         }

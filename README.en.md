@@ -21,7 +21,7 @@
 <p align="center">
   Built with Rust. Manage forwarding rules, device groups, traffic quotas, and<br/>
   live node status via web UI. Lightweight: Panel ~7 MB + Node ~4 MB.<br/>
-  Deploy: Docker Compose. Database: SQLite / PostgreSQL.
+  Deploy: Docker Compose. Database: MySQL 5.7.
 </p>
 
 ---
@@ -34,7 +34,7 @@
 - 📊 **Traffic visibility** — per-rule and per-user metering, with 1 / 7 / 30-day charts stacked by line so you can see which one is consuming the quota
 - 🖥️ **Node management** — live CPU / memory / connections, region detection, Telegram or email alerts on offline, one-click upgrade from the panel (no SSH)
 - 👤 **Users & groups** — manage any user's rules and plan, reset traffic or password, ban; device groups can be hidden, and removing a node doesn't affect rules
-- 🗄️ **Deployment-friendly** — SQLite (zero-config) or PostgreSQL; panel and node both support amd64 / arm64
+- 🗄️ **Deployment-friendly** — bundled MySQL 5.7 service; panel and node both support amd64 / arm64
 - 🔒 **Security** — first login forces password change; node auth via Bearer token
 
 Full feature reference and user docs: **[Project documentation](docs/DEPLOYMENT.md)**
@@ -66,14 +66,14 @@ curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | ba
    relay-panel  ◄─── WebSocket config push + HTTP status report
    (Axum API)                     │
        │                          ▼
-   SQLite / PG              forwards traffic to targets
+   MySQL 5.7               forwards traffic to targets
 ```
 
 ---
 
 ## 🔄 Update
 
-**Panel**: when a new version is out, click "Update Now" on the dashboard — no SSH. A SQLite database is backed up to `backups/` first (the newest 5 are kept; a manual `./deploy.sh` upgrade does the same); back up PostgreSQL yourself. The panel is unreachable for about half a minute; node forwarding is not affected.
+**Panel**: when a new version is out, click "Update Now" on the dashboard — no SSH. A consistent MySQL dump is written to `backups/` first (the newest 5 are kept). The panel is unreachable for about half a minute; node forwarding is not affected.
 
 One-click update relies on an updater that a manual update installs, so **v1.2.10 and earlier need one manual update first** (back up `.env` and your database):
 
@@ -97,7 +97,7 @@ python3 tests/e2e_test.py                   # end-to-end test
 
 ## 📦 Tech stack
 
-Rust · Axum · Tokio · sqlx · SQLite/PostgreSQL · JWT · React 19 · TypeScript · Ant Design · Docker Compose
+Rust · Axum · Tokio · sqlx · MySQL 5.7 · JWT · React 19 · TypeScript · Ant Design · Docker Compose
 
 ---
 
