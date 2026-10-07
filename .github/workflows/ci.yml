@@ -16,28 +16,6 @@ jobs:
     name: fmt + clippy + test + lint + build + e2e
     runs-on: ubuntu-latest
 
-    # v0.4.3 PR2: PostgreSQL service for the PgRepository contract tests.
-    # The tests gate on TEST_PG_URL — when present, the pg_repo::tests module
-    # runs against this service; when absent (local dev) it skips. health check
-    # waits for PG to accept connections before cargo test starts.
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: relaytest
-          POSTGRES_PASSWORD: relaytest
-          POSTGRES_DB: relaytest
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U relaytest"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      TEST_PG_URL: postgres://relaytest:relaytest@localhost:5432/relaytest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -68,9 +46,6 @@ jobs:
 
       - name: cargo test
         run: cargo test --workspace
-
-      - name: repo test parity
-        run: bash scripts/check-repo-test-parity.sh
 
       - name: cargo build (debug, for e2e)
         run: cargo build

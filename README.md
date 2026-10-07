@@ -78,7 +78,7 @@ cd /opt/relay && git pull --quiet && ./deploy.sh
 
 ### 卸载面板端
 
-卸载前如需保留数据，请先备份 `/opt/relay/data/`。以下命令会删除面板容器、SQLite 数据和程序目录：
+以下命令会删除面板容器和程序目录，但默认保留名为 `relay_panel_data` 的 SQLite Docker 数据卷：
 
 ```bash
 cd /opt/relay
@@ -90,7 +90,13 @@ cd /
 rm -rf /opt/relay
 ```
 
-> ⚠️ 删除 `/opt/relay/data/` 后，用户、规则、套餐和所有面板数据都无法恢复。
+确认不再需要数据库后，可继续删除数据卷：
+
+```bash
+docker volume rm relay_panel_data
+```
+
+> ⚠️ 删除 `relay_panel_data` 后，用户、规则、套餐和所有面板数据都无法恢复。
 
 ### 卸载节点端
 

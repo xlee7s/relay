@@ -63,7 +63,6 @@ if [ "${1:-}" = "compose" ]; then
     shift
     case "$*" in
         *' ps -q caddy') echo 'caddy123'; exit 0 ;;
-        *' ps -q postgres') echo 'pg123'; exit 0 ;;
         *' ps --all -q panel')
             [ -n "${HARNESS_PS_FAILS:-}" ] && exit 1
             [ -n "${HARNESS_DATA_DIR:-}" ] && echo 'panel123'; exit 0 ;;
@@ -78,7 +77,7 @@ if [ "${1:-}" = "compose" ]; then
         *' up -d'*)
             printf 'UP %s\n' "$*" >> "$log"
             [ -n "${HARNESS_UP_FAILS:-}" ] && { echo 'compose up exploded' >&2; exit 1; }
-            env | grep -E '^(RELAYPANEL_WEB_MODE|RELAYPANEL_PANEL_PORT_BINDING|RELAYPANEL_DOMAIN|PUBLIC_PANEL_URL|REVERSE_PROXY_EXTERNAL|ACME_EMAIL|CADDY_ACME_EMAIL_DIRECTIVE|RELAYPANEL_DB_MODE)=' | sort >> "$log"
+            env | grep -E '^(RELAYPANEL_WEB_MODE|RELAYPANEL_PANEL_PORT_BINDING|RELAYPANEL_DOMAIN|PUBLIC_PANEL_URL|REVERSE_PROXY_EXTERNAL|ACME_EMAIL|CADDY_ACME_EMAIL_DIRECTIVE)=' | sort >> "$log"
             exit 0
             ;;
     esac
@@ -204,26 +203,6 @@ ENV
 (cd "$dir" && HARNESS_LOG="$log" PATH="$TMP/fakebin-upgrade-rp-external:$PATH" bash ./deploy.sh >/tmp/rp-upgrade-rp-external-2.out 2>/tmp/rp-upgrade-rp-external-2.err)
 assert_log_has "$log" 'RELAYPANEL_PANEL_PORT_BINDING=0.0.0.0:18888'
 pass 'separate-host reverse-proxy binds public port explicitly'
-
-# Embedded PostgreSQL plus Caddy enables both profiles.
-res=$(run_case pg-caddy env)
-dir=${res%|*}; log=${res#*|}
-cat > "$dir/.env" <<ENV
-JWT_SECRET=strong-existing-secret-strong-existing-secret
-PANEL_KEY=y
-DATABASE_URL=postgres://relaypanel:pass@postgres:5432/relaypanel
-RELAYPANEL_DB_MODE=embedded-postgres
-RELAYPANEL_WEB_MODE=caddy
-RELAYPANEL_DOMAIN=pgcaddy.example.com
-PUBLIC_PANEL_URL=https://pgcaddy.example.com
-ENV
-(cd "$dir" && HARNESS_LOG="$log" PATH="$TMP/fakebin-pg-caddy:$PATH" bash ./deploy.sh >/tmp/rp-pg-caddy-2.out 2>/tmp/rp-pg-caddy-2.err)
-assert_log_has "$log" '--profile postgres --profile caddy'
-assert_log_has "$log" 'RELAYPANEL_PANEL_PORT_BINDING=127.0.0.1:18888'
-assert_log_has "$log" 'CADDY_HTTPS https://pgcaddy.example.com/'
-pass 'embedded PostgreSQL and Caddy profiles compose together'
-assert_file_has "$dir/.env" 'JWT_SECRET=strong-existing-secret-strong-existing-secret'
-pass 'upgrade keeps an existing strong JWT_SECRET'
 
 # v1.2.12: a manual SQLite upgrade backs the database up with the panel
 # stopped, before the new version starts.

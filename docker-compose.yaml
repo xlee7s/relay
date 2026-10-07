@@ -29,8 +29,7 @@ services:
       #   caddy          → 127.0.0.1:18888:18888 (localhost only, Caddy handles TLS)
       - "${RELAYPANEL_PANEL_PORT_BINDING:-0.0.0.0:18888}:18888"
     environment:
-      # v0.4.3: DATABASE_URL is the canonical driver.  Supports SQLite and
-      # PostgreSQL.  Defaults to SQLite for one-click compatibility.
+      # SQLite is the only database backend. Data is stored in panel_data.
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/data.db?mode=rwc}
       - LISTEN=0.0.0.0:18888
       - PUBLIC_DIR=/app/public
@@ -114,31 +113,7 @@ services:
     depends_on:
       - panel
 
-  # Optional: PostgreSQL backend (v0.4.3).  Only started when the postgres
-  # profile is enabled.  The panel reads DATABASE_URL to decide the backend.
-  # Usage:
-  #   docker compose --profile postgres up -d
-  #   # or: RELAYPANEL_DB_MODE=embedded-postgres ./deploy.sh
-  postgres:
-    image: postgres:16-alpine
-    profiles:
-      - postgres
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-relaypanel}
-      - POSTGRES_USER=${POSTGRES_USER:-relaypanel}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-relaypanel} -d ${POSTGRES_DB:-relaypanel}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
 volumes:
   panel_data:
-  postgres_data:
   caddy_data:
   caddy_config:

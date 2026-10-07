@@ -2850,7 +2850,7 @@ async fn delete_group_owner_scope_rejects_wrong_owner() {
     assert_eq!(n, 1, "owner 2 must be able to delete their group");
 }
 
-// ── v0.4.18 PR8: SQLite parity gap fill — tests ported from pg_repo ──
+// ── v0.4.18 PR8: SQLite repository regression coverage ──
 
 /// Cascade deletes rules, groups, profiles, and the user in one tx.
 /// Regression for v0.4.4: the cascade must delete custom tunnel_profiles.

@@ -22,7 +22,7 @@ it helps reviewers (and future you) understand the change quickly.
 - [ ] `cargo fmt --check` passes
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
 - [ ] `cargo test --workspace` passes (15+ tests)
-- [ ] If touching `db/{sqlite,pg}_repo`: both backend implementations and tests are updated in parity
+- [ ] If touching `db/sqlite_repo`: SQLite repository tests are updated
 - [ ] `cd frontend && npm run lint` passes
 - [ ] `cd frontend && npm run build` passes
 - [ ] If release-relevant: `bash scripts/release-check.sh X.Y.Z` shows 0 FAIL

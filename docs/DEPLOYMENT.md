@@ -116,8 +116,7 @@ NODE_TOKEN=<paste a node token from the UI later>
 # Optional: set when the panel is behind a domain/reverse proxy so the
 # "Copy Install Command" button emits the right URL for nodes.
 PUBLIC_PANEL_URL=https://panel.example.com
-# DATABASE_URL controls the database backend.  Defaults to SQLite.
-# See "Database modes" section below.
+# SQLite is the only database backend.
 DATABASE_URL=sqlite:/app/data/data.db?mode=rwc
 EOF
     chmod 600 .env
@@ -127,36 +126,13 @@ EOF
     > in the panel UI after first login, copy its token, then update `.env` and
     > `docker compose restart node`.
 
-    ### Database modes
+    ### SQLite database
 
-    RelayPanel supports three database modes, controlled by `DATABASE_URL`:
-
-    | Mode | DATABASE_URL | What happens |
-    |------|-------------|-------------|
-    | **SQLite** (default) | `sqlite:/app/data/data.db?mode=rwc` | Panel starts directly. No extra containers. |
-    | **PostgreSQL (embedded)** | `postgres://user:pass@postgres:5432/db` | `deploy.sh` starts a `postgres` container (profile), waits for healthy, then starts panel. Set `RELAYPANEL_DB_MODE=embedded-postgres` + `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD` in `.env`. |
-    | **PostgreSQL (external)** | `postgres://user:pass@host:port/db` | `deploy.sh` verifies connectivity with a real `psql` query before starting the panel. Set `RELAYPANEL_DB_MODE=external-postgres`. |
-
-    - `DATABASE_URL` is the **canonical** env var.
-    - `DATABASE_PATH` is a **legacy fallback** — it still works, but new
-      deployments should use `DATABASE_URL`. On upgrade, `deploy.sh` wraps a
-      legacy `DATABASE_PATH` into a `sqlite:` URL **at the same location** (the
-      data file is never moved).
-    - **Fresh install only:** `deploy.sh` shows the interactive backend menu
-      (SQLite / embedded PostgreSQL / external PostgreSQL) when it is the first
-      run (no `.env` yet) on a terminal. Non-interactive installs (e.g.
-      `curl \| bash`) default to SQLite.
-    - **Upgrade:** when `.env` already exists, `deploy.sh` keeps the current
-      backend untouched — no menu, no change to `DATABASE_URL` /
-      `RELAYPANEL_DB_MODE`. It detects the backend and prints one concise line,
-      e.g. `Database backend: SQLite (unchanged)`. Switching between SQLite and
-      PostgreSQL is a manual operation: stop the panel, migrate your data, then
-      edit `.env` yourself.
-    - External PostgreSQL **must** be a full, URL-encoded connection string.
-      Passwords with special characters (`@`, `:`, `#`, `%`, etc.) must be
-      percent-encoded (e.g. `p@ss` → `p%40ss`).
-    - Connection failure is **fatal** — the deploy script never falls back to
-      SQLite when PostgreSQL was configured.
+    RelayPanel only supports SQLite. The default connection is
+    `sqlite:/app/data/data.db?mode=rwc`, stored in the persistent `panel_data`
+    Docker volume. `DATABASE_PATH` remains available only as a compatibility
+    fallback for older installations. A non-SQLite `DATABASE_URL` is rejected
+    at startup instead of silently selecting another backend.
 
     #### `PUBLIC_PANEL_URL` (optional)
 

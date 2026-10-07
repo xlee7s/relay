@@ -1,4 +1,3 @@
-use crate::db::pg_schema::{apply_pg_schema, run_pg_migrations};
 use crate::db::repo::UserRepository;
 use crate::db::schema::{run_migrations, SCHEMA_SQL};
 use crate::db::sqlite_repo::SqliteRepository;
@@ -67,7 +66,6 @@ pub async fn init_db(database_url: &str) -> Result<SqlitePool, sqlx::Error> {
 
     Ok(pool)
 }
-
 /// Hash the default "admin123" password into users(id=1) IF AND ONLY IF the
 /// stored value is still the SCHEMA_SQL placeholder. A password an admin has
 /// already changed is NEVER touched.
@@ -114,84 +112,4 @@ fn db_err_to_sqlx(e: crate::db::error::DbError) -> sqlx::Error {
         crate::db::error::DbError::Other(inner) => inner,
         other => sqlx::Error::Configuration(format!("init db error: {other}").into()),
     }
-}
-
-// ── PostgreSQL ──
-//
-// v0.4.3: PostgreSQL support. The user installs PG, creates an empty database,
-// and fills in the connection string (e.g. `postgres://user:pass@host/db`).
-// The panel creates all tables + seed data on first boot via PG_SCHEMA_SQL.
-// There is NO migration suite — PG support is new, there are no old PG
-// databases to upgrade.
-
-/// Initialize a PostgreSQL pool + schema. Returns a `PgPool` the caller wraps
-/// in `PgRepository::new` to get an `Arc<dyn Repository>`.
-///
-/// Fail-fast contract: any error (connection refused, auth failure, schema
-/// creation failure) propagates as `Err` and the caller MUST terminate. There
-/// is NO fallback to SQLite — silently switching backends would cause "data
-/// written locally, user thinks it's in PG" data loss, which is strictly worse
-/// than a startup crash.
-pub async fn init_pg(database_url: &str) -> Result<sqlx::PgPool, sqlx::Error> {
-    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-    use std::str::FromStr;
-
-    let opts = PgConnectOptions::from_str(database_url)?;
-
-    // max_connections=5 matches the SQLite serving pool. PG handles
-    // concurrent connections natively (MVCC), so no single-writer limit.
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect_with(opts)
-        .await?;
-
-    // Create all tables + seed admin/plan/builtin profiles. apply_pg_schema
-    // splits PG_SCHEMA_SQL into individual statements (PG's prepared-statement
-    // protocol rejects multi-statement strings). Fully idempotent (CREATE
-    // TABLE IF NOT EXISTS + ON CONFLICT DO NOTHING), so re-runs are no-ops.
-    apply_pg_schema(&pool).await?;
-
-    // Apply any ordered migrations beyond the baseline (v0.4.4: none yet, but
-    // this is how future releases evolve an existing PG database since
-    // CREATE TABLE IF NOT EXISTS can't alter existing tables).
-    run_pg_migrations(&pool).await?;
-
-    // Same placeholder-password hashing as SQLite: the seed admin row has the
-    // PLACEHOLDER string, init replaces it with a real bcrypt hash of "admin123".
-    // This runs through the Repository trait so the SQL lives in pg_repo.rs.
-    hash_default_admin_password_if_placeholder_pg(&pool).await?;
-
-    Ok(pool)
-}
-
-/// PG equivalent of `hash_default_admin_password_if_placeholder`. Same safety
-/// contract: only hashes when the stored value is still the literal PLACEHOLDER.
-async fn hash_default_admin_password_if_placeholder_pg(
-    pool: &sqlx::PgPool,
-) -> Result<(), sqlx::Error> {
-    use crate::db::pg_repo::PgRepository;
-    let repo = PgRepository::new(pool.clone());
-    let needs_hash = repo
-        .count_placeholder_admin_password()
-        .await
-        .map_err(db_err_to_sqlx)?;
-    if needs_hash > 0 {
-        let hashed = bcrypt::hash("admin123", 12).unwrap_or_default();
-        repo.replace_placeholder_admin_password(&hashed)
-            .await
-            .map_err(db_err_to_sqlx)?;
-        tracing::info!("hashed the default admin password (first boot placeholder -> bcrypt)");
-    }
-    Ok(())
-}
-
-/// Detect whether a `database_url` string targets PostgreSQL. Recognized
-/// prefixes: `postgres://`, `postgresql://`, `postgres+ssl://` (and the same
-/// for `postgresql`). Anything else (including `sqlite:` and bare file paths)
-/// is treated as SQLite — the default, zero-config backend.
-pub fn is_postgres_url(database_url: &str) -> bool {
-    database_url.starts_with("postgres://")
-        || database_url.starts_with("postgresql://")
-        || database_url.starts_with("postgres+ssl://")
-        || database_url.starts_with("postgresql+ssl://")
 }

@@ -148,29 +148,24 @@ fi
 # panel stopped for deploy.sh to start the new one. v1.2.12: deploy.sh uses the
 # same script for manual upgrades; RELAYPANEL_BACKUP_DONE below tells it this
 # run already has its backup.
-DB_MODE="$(env_get RELAYPANEL_DB_MODE)"
 BACKUP_NOTE=""
-if [ -z "$DB_MODE" ] || [ "$DB_MODE" = "sqlite" ]; then
-    backup="$(bash "$ROOT/scripts/sqlite-backup.sh" "$RELEASE_COMPOSE" "v${FROM:-unknown}" 2>>"$LOG.run")"
-    case $? in
-        0)
-            log "backed up to $backup"
-            BACKUP_NOTE=" Database backed up to backups/${backup##*/}."
-            ;;
-        3)
-            log "could not locate the SQLite database; continuing without a backup"
-            BACKUP_NOTE=" Database NOT backed up (not found)."
-            ;;
-        *)
-            # Refuse to continue without a backup: the new version may migrate
-            # the schema, and this is the one moment to keep a way back. The
-            # backup script started the old panel again if it had stopped it.
-            finish failed "No usable database backup could be taken (the copy failed, or the panel could not be confirmed stopped), so the update was not applied. The panel stays on the old version."
-            ;;
-    esac
-else
-    BACKUP_NOTE=" PostgreSQL is not backed up automatically."
-fi
+backup="$(bash "$ROOT/scripts/sqlite-backup.sh" "$RELEASE_COMPOSE" "v${FROM:-unknown}" 2>>"$LOG.run")"
+case $? in
+    0)
+        log "backed up to $backup"
+        BACKUP_NOTE=" Database backed up to backups/${backup##*/}."
+        ;;
+    3)
+        log "could not locate the SQLite database; continuing without a backup"
+        BACKUP_NOTE=" Database NOT backed up (not found)."
+        ;;
+    *)
+        # Refuse to continue without a backup: the new version may migrate
+        # the schema, and this is the one moment to keep a way back. The
+        # backup script started the old panel again if it had stopped it.
+        finish failed "No usable database backup could be taken (the copy failed, or the panel could not be confirmed stopped), so the update was not applied. The panel stays on the old version."
+        ;;
+esac
 
 # ---- 4. Deploy ----
 # stdin from /dev/null: an upgrade never prompts, and if something ever tried

@@ -266,15 +266,6 @@ check "no backup was taken" bash -c "! ls '$REPO'/backups/data-*.db >/dev/null 2
 check "deploy.sh never ran" bash -c "[ ! -e '$STATE/deploy-backup-flag' ]"
 check "nothing was stopped" bash -c "! grep -q 'stop panel' '$STATE/docker-calls'"
 
-echo "the panel runs on PostgreSQL"
-setup 1.2.10 1.2.11
-echo 1.2.11 > "$STATE/next-version"
-printf 'DATABASE_URL=postgres://relay:secret@db:5432/relay\n' > "$STATE/container-env"
-run_updater
-check "reports succeeded" state_is succeeded
-check "says it was not backed up" message_has "NOT backed up"
-check "nothing was stopped" bash -c "! grep -q 'stop panel' '$STATE/docker-calls'"
-
 echo "a request planted as a directory"
 setup 1.2.10 1.2.10
 rm -f "$REPO/run/update-request"

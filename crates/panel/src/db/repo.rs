@@ -4,8 +4,7 @@
 // access contract. The aggregate `Repository` trait combines them so handlers
 // take a single `Arc<dyn Repository>` dependency.
 //
-// PR1: only SqliteRepository implements these traits. PR2 will add
-// PgRepository (PostgreSQL) implementing the same traits.
+// SqliteRepository is the single implementation of these traits.
 //
 // Design principles:
 //   - Methods return domain models (User, ForwardRule, ...) — no DB types leak.
@@ -365,9 +364,8 @@ pub trait RuleRepository: Send + Sync {
     /// as the DB-layer backstop (partial unique index) when a concurrent insert
     /// won the race.
     ///
-    /// Concurrency: SQLite uses BEGIN IMMEDIATE (acquire the write lock up
-    /// front); PostgreSQL takes a per-group advisory xact lock plus the
-    /// existing user-row FOR UPDATE quota lock.
+    /// Concurrency: SQLite uses BEGIN IMMEDIATE to acquire the write lock up
+    /// front.
     #[allow(clippy::too_many_arguments)]
     async fn insert_quota_guarded(
         &self,

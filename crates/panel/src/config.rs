@@ -64,17 +64,16 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Self {
-        // v0.4.3: DATABASE_URL is the canonical env var; DATABASE_PATH is a
-        // legacy fallback for deployments created before v0.4.3.  The internal
-        // field name stays `database_path` to avoid a wider refactor.
-        //
-        // Order:
-        //   1. DATABASE_URL   (e.g. postgres://user:pass@host/db or sqlite:...)
-        //   2. DATABASE_PATH  (legacy, e.g. sqlite:/app/data/data.db?mode=rwc)
-        //   3. Default: sqlite:data.db?mode=rwc
-        let database_path = std::env::var("DATABASE_URL")
-            .or_else(|_| std::env::var("DATABASE_PATH"))
-            .unwrap_or_else(|_| "sqlite:data.db?mode=rwc".into());
+        // SQLite is the only supported database. DATABASE_PATH remains as a
+        // compatibility fallback for older installations.
+        let database_path = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => match std::env::var("DATABASE_PATH") {
+                Ok(path) if path.starts_with("sqlite:") => path,
+                Ok(path) => format!("sqlite:{path}?mode=rwc"),
+                Err(_) => "sqlite:data.db?mode=rwc".into(),
+            },
+        };
         let listen = std::env::var("LISTEN").unwrap_or_else(|_| "0.0.0.0:18888".into());
         let key = std::env::var("PANEL_KEY").unwrap_or_else(|_| "default-key".into());
         let jwt_secret =
@@ -126,6 +125,10 @@ impl Config {
     /// must be replaced. The random fallback above is fine for local dev
     /// because it is generated fresh each run and passes the check.
     fn validate(&self) {
+        if !self.database_path.starts_with("sqlite:") {
+            eprintln!("FATAL: DATABASE_URL must use SQLite (expected sqlite:...).");
+            std::process::exit(1);
+        }
         if let Some(problem) = jwt_secret_problem(&self.jwt_secret) {
             eprintln!(
                 "FATAL: JWT_SECRET {}.\n  \

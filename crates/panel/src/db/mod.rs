@@ -1,7 +1,5 @@
 pub mod error;
 pub mod init;
-pub mod pg_repo;
-pub mod pg_schema;
 pub mod repo;
 pub mod schema;
 pub mod sqlite_repo;

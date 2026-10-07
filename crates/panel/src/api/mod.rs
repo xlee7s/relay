@@ -26,10 +26,8 @@ pub mod ws;
 
 #[derive(Clone)]
 pub struct AppState {
-    /// v0.4.3: data access goes through the Repository trait, not a raw
-    /// `SqlitePool`. PR1 wires `Arc<SqliteRepository>` here; PR2 will switch
-    /// this to `Arc<PgRepository>` for the Postgres backend without changing
-    /// a single handler.
+    /// Data access goes through the repository abstraction rather than a raw
+    /// SQLite pool, keeping handlers independent from connection management.
     pub db: Arc<dyn Repository>,
     pub config: Config,
     pub release_cache: ReleaseCache,

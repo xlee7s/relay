@@ -7,8 +7,7 @@ mod service;
 
 use axum::Router;
 use config::Config;
-use db::init::{init_db, init_pg, is_postgres_url};
-use db::pg_repo::PgRepository;
+use db::init::init_db;
 use db::repo::Repository;
 use db::sqlite_repo::SqliteRepository;
 use std::net::SocketAddr;
@@ -160,31 +159,13 @@ async fn main() {
 /// Shared by the server path and the CLI subcommands so they can never
 /// diverge on which database they touch.
 async fn open_database(config: &Config) -> Arc<dyn Repository> {
-    // v0.4.3: backend is chosen at startup by the database_url prefix and is
-    // fixed for the process lifetime — NO runtime switching, NO fallback. If
-    // the URL is a PostgreSQL DSN, we init PG; anything else (including the
-    // default SQLite file path) inits SQLite.
-    //
-    // Fail-fast contract: a configured PG backend that can't connect MUST
-    // terminate startup. Falling back to SQLite would silently write data
-    // locally while the user believes it's in PG — strictly worse than a crash.
-    // The `?` in init_db/init_pg propagates errors to `.expect()`, which panics
-    // and exits with a non-zero status. No `unwrap_or_else(fallback)` branch.
-    if is_postgres_url(&config.database_path) {
-        tracing::info!("database backend: PostgreSQL");
-        let pool = init_pg(&config.database_path)
-            .await
-            .expect("Failed to initialize PostgreSQL database");
-        Arc::new(PgRepository::new(pool))
+    if config.database_path == "sqlite::memory:" || config.database_path.is_empty() {
+        tracing::info!("database backend: SQLite (in-memory / default)");
     } else {
-        if config.database_path == "sqlite::memory:" || config.database_path.is_empty() {
-            tracing::info!("database backend: SQLite (in-memory / default)");
-        } else {
-            tracing::info!("database backend: SQLite ({})", config.database_path);
-        }
-        let pool = init_db(&config.database_path)
-            .await
-            .expect("Failed to initialize SQLite database");
-        Arc::new(SqliteRepository::new(pool))
+        tracing::info!("database backend: SQLite ({})", config.database_path);
     }
+    let pool = init_db(&config.database_path)
+        .await
+        .expect("Failed to initialize SQLite database");
+    Arc::new(SqliteRepository::new(pool))
 }

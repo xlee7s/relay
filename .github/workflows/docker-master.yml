@@ -16,6 +16,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify:
+    name: Verify SQLite backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup show
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Compile and test SQLite backend
+        run: cargo test -p relay-panel
+
   build:
     name: Build ${{ matrix.service }} (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -83,7 +95,7 @@ jobs:
 
   publish:
     name: Publish ${{ matrix.service }} manifest
-    needs: build
+    needs: [build, verify]
     runs-on: ubuntu-latest
     strategy:
       matrix:

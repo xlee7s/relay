@@ -1036,7 +1036,7 @@ pub async fn run_migrations(pool: &sqlx::SqlitePool) -> Result<(), sqlx::Error> 
         // v0.4.8 fix: NULL out tunnel_profile_id on rules referencing the
         // templates we're about to delete BEFORE the delete. SQLite doesn't
         // enforce FKs by default, but we keep the order correct and consistent
-        // with PostgreSQL, and it prevents dangling references on
+        // with the repository contract, and it prevents dangling references on
         // FK-enforced deployments.
         let has_tp: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM pragma_table_info('forward_rules') \
@@ -1440,7 +1440,7 @@ pub async fn run_migrations(pool: &sqlx::SqlitePool) -> Result<(), sqlx::Error> 
 
     // ── Migration 31: v1.0.5 fix em-dash encoding in default user_group remark ──
     // The seed in Migration 30 used an em dash (U+2014) which is garbled on
-    // PostgreSQL connections with non-UTF-8 client_encoding. Replace with ASCII.
+    // Keep migration SQL ASCII-only so it is portable across environments.
     sqlx::query(
         "UPDATE user_groups SET remark = 'Default group - all device groups allowed' \
          WHERE id = 1 AND remark != 'Default group - all device groups allowed'",

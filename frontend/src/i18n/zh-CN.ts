@@ -436,7 +436,7 @@ export const zhCN = {
   updateNow: '马上更新',
   panelUpdateTitle: '更新面板',
   panelUpdateConfirmTitle: '把面板更新到 {version}？',
-  panelUpdateConfirmBody: '更新期间面板大约有半分钟打不开，节点转发不受影响。SQLite 数据库会在更新前自动备份；用 PostgreSQL 的请先自行备份。',
+  panelUpdateConfirmBody: '更新期间面板大约有半分钟打不开，节点转发不受影响。SQLite 数据库会在更新前自动备份。',
   panelUpdating: '正在更新到 {version}。面板重启期间页面会暂时连不上，完成后会自动刷新。',
   panelUpdateDone: '更新完成，正在刷新页面…',
   panelUpdateFailed: '更新失败，面板仍在旧版本上运行',

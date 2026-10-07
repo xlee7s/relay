@@ -84,13 +84,7 @@ UNIT
     info "One-click panel update enabled (relaypanel-updater.path)"
 }
 
-# Read a single KEY's value from .env WITHOUT sourcing it. Sourcing (`. ./.env`)
-# executes the file as shell, so a value containing &, $(...), backticks, spaces
-# or quotes — all legal in a PostgreSQL DSN like
-# `postgres://u:p@h/db?sslmode=require&application_name=relaypanel` — would be
-# interpreted (or even executed) instead of read literally. We grep the last
-# matching KEY=VALUE line and strip the key prefix plus one optional layer of
-# surrounding quotes. Prints nothing if the key is absent.
+# Read a single KEY's value from .env without sourcing or executing the file.
 env_get() {
     key="$1"
     [ -f .env ] || return 0
@@ -102,14 +96,6 @@ env_get() {
         \'*\') val="${val#\'}"; val="${val%\'}" ;;
     esac
     printf '%s' "$val"
-}
-
-# Redact the password in a postgres:// URL for safe logging:
-#   postgres://user:secret@host:5432/db?x=1 -> postgres://user:***@host:5432/db?x=1
-# Never print a raw DATABASE_URL — it carries credentials that would otherwise
-# land in terminal scrollback and CI logs.
-redact_url() {
-    printf '%s' "$1" | sed -E 's#(://[^:/@]+:)[^@]*@#\1***@#'
 }
 
 # ---------- 1. Docker ----------
@@ -164,203 +150,33 @@ else
     unset current_jwt new_jwt
 fi
 
-# ---------- 2b. Database backend resolution ----------
-# The interactive backend MENU is shown ONLY on a brand-new install. Upgrades
-# keep whatever backend they already use, untouched, and never see a switch
-# option (switching SQLite<->PostgreSQL requires a manual stop + data migration
-# by the operator, by design).
-#
-# Resolution precedence:
-#   (A) DATABASE_URL from the environment (CI / pre-configured)  — used as-is
-#   (B) Upgrade (.env already existed before this run):
-#         1. DATABASE_URL stored in .env
-#         2. Legacy DATABASE_PATH (pre-v0.4.3) — wrapped into a sqlite: URL at
-#            the SAME location (the data file is never moved)
-#         3. Neither present — pre-v0.4.3 default SQLite path
-#       In all upgrade cases: no prompt, DATABASE_URL/RELAYPANEL_DB_MODE are
-#       left unchanged, and one concise "(unchanged)" line is printed.
-#   (C) Fresh install: interactive menu via /dev/tty (works under curl|bash),
-#       or SQLite default when there is no terminal.
-#
-# Security boundaries:
-#   - Upgrades NEVER offer to switch backends.
-#   - PostgreSQL connectivity failure is fatal (handled in 2c) — never fall
-#     back to SQLite.
-#   - .env is never sourced (special chars in a DSN would break or execute).
-#   - PostgreSQL URLs are redacted before logging (see redact_url).
-
-# Human-readable backend label for the concise upgrade message.
-db_backend_label() {
-    case "${RELAYPANEL_DB_MODE:-}" in
-        embedded-postgres) printf 'PostgreSQL embedded' ;;
-        external-postgres) printf 'PostgreSQL external' ;;
-        *)
-            case "${1:-}" in
-                postgres://*|postgresql://*) printf 'PostgreSQL' ;;
-                *) printf 'SQLite' ;;
-            esac
-            ;;
-    esac
-}
-
-if [ -n "${DATABASE_URL:-}" ]; then
-    # (A) Provided by the environment — authoritative, used as-is.
-    info "DATABASE_URL provided via environment — using it as-is"
-    # Fill RELAYPANEL_DB_MODE from .env only if the caller didn't set it; never
-    # touch the caller's DATABASE_URL.
-    if [ -z "${RELAYPANEL_DB_MODE:-}" ]; then
-        RELAYPANEL_DB_MODE="$(env_get RELAYPANEL_DB_MODE)"
-    fi
-    if ! grep -q '^DATABASE_URL=' .env 2>/dev/null; then
-        cat >> .env <<EOF
-DATABASE_URL=${DATABASE_URL}
-EOF
-        chmod 600 .env
-    fi
-elif [ "$FRESH_INSTALL" = "0" ]; then
-    # (B) Upgrade — detect and keep the existing backend. Never prompt.
-    if grep -q '^DATABASE_URL=' .env 2>/dev/null; then
-        DATABASE_URL="$(env_get DATABASE_URL)"
-        RELAYPANEL_DB_MODE="${RELAYPANEL_DB_MODE:-$(env_get RELAYPANEL_DB_MODE)}"
-    elif grep -q '^DATABASE_PATH=' .env 2>/dev/null; then
-        # Legacy pre-v0.4.3 config: wrap DATABASE_PATH into a sqlite: URL at the
-        # SAME location. We must NOT relocate the existing data file.
-        _LEGACY_PATH="$(env_get DATABASE_PATH)"
-        DATABASE_URL="sqlite:${_LEGACY_PATH}?mode=rwc"
-        cat >> .env <<EOF
-DATABASE_URL=${DATABASE_URL}
-EOF
-        chmod 600 .env
-    else
-        # No backend recorded at all — the pre-v0.4.3 default was SQLite here.
-        DATABASE_URL="sqlite:/app/data/data.db?mode=rwc"
-        cat >> .env <<EOF
-DATABASE_URL=${DATABASE_URL}
-EOF
-        chmod 600 .env
-    fi
-    info "Existing installation detected."
-    info "Database backend: $(db_backend_label "$DATABASE_URL") (unchanged)"
-else
-    # (C) Fresh install — interactive menu if we have a terminal.
-    if [ -t 0 ] || [ -t 1 ]; then
-        # Attach a terminal so prompts work even under curl|bash.
-        exec < /dev/tty || true
-    fi
-
-    if [ -t 0 ]; then
-        echo ""
-        info "Database backend selection"
-        echo "  1) SQLite (default, zero-config)"
-        echo "  2) PostgreSQL (embedded Docker container)"
-        echo ""
-        printf "Choose [1-2] (default 1): "
-        read -r DB_CHOICE
-        DB_CHOICE="${DB_CHOICE:-1}"
-
-        case "$DB_CHOICE" in
-            1)
-                info "Selected: SQLite"
-                DATABASE_URL="sqlite:/app/data/data.db?mode=rwc"
-                ;;
-            2)
-                info "Selected: PostgreSQL (embedded Docker)"
-                # v1.0.7 fix: set the SHELL var (not just .env) so this same run's
-                # pre-flight (2c) and profile decision (step 3) actually start the
-                # postgres container + add --profile postgres. Without this, a fresh
-                # interactive PG install wrote embedded-postgres to .env but left the
-                # shell var empty, so postgres never started and the panel crash-looped
-                # ("Panel did not become reachable") trying to resolve host `postgres`.
-                RELAYPANEL_DB_MODE=embedded-postgres
-                printf "  Database name [relaypanel]: "
-                read -r PG_DB
-                PG_DB="${PG_DB:-relaypanel}"
-                printf "  Username [relaypanel]: "
-                read -r PG_USER
-                PG_USER="${PG_USER:-relaypanel}"
-                # Auto-generate a hex password to avoid URL-escaping issues.
-                PG_PASS=$(openssl rand -hex 16)
-                echo "  Password (auto-generated): ${PG_PASS}"
-                DATABASE_URL="postgres://${PG_USER}:${PG_PASS}@postgres:5432/${PG_DB}"
-                cat >> .env <<EOF
-POSTGRES_DB=${PG_DB}
-POSTGRES_USER=${PG_USER}
-POSTGRES_PASSWORD=${PG_PASS}
-RELAYPANEL_DB_MODE=embedded-postgres
-EOF
-                ;;
-            *)
-                fail "Invalid choice: $DB_CHOICE"
-                ;;
+# ---------- 2b. SQLite database ----------
+# SQLite is the only supported backend. Preserve a custom SQLite URL from the
+# environment or .env; otherwise use the persistent /app/data volume.
+if [ -z "${DATABASE_URL:-}" ]; then
+    DATABASE_URL="$(env_get DATABASE_URL)"
+fi
+if [ -z "$DATABASE_URL" ]; then
+    _LEGACY_PATH="$(env_get DATABASE_PATH)"
+    if [ -n "$_LEGACY_PATH" ]; then
+        case "$_LEGACY_PATH" in
+            sqlite:*) DATABASE_URL="$_LEGACY_PATH" ;;
+            *) DATABASE_URL="sqlite:${_LEGACY_PATH}?mode=rwc" ;;
         esac
-
-        # Write DATABASE_URL into .env so future runs don't re-prompt.
-        cat >> .env <<EOF
-DATABASE_URL=${DATABASE_URL}
-EOF
-        chmod 600 .env
-        info "DATABASE_URL written to .env"
     else
-        # No TTY — default to SQLite (e.g. curl|bash one-line install).
-        info "No terminal detected — defaulting to SQLite"
         DATABASE_URL="sqlite:/app/data/data.db?mode=rwc"
-        cat >> .env <<EOF
-DATABASE_URL=${DATABASE_URL}
-EOF
-        chmod 600 .env
     fi
 fi
-
-# Export for compose.
-export DATABASE_URL
-
-# ---------- 2c. Database connectivity pre-flight (v0.4.3) ----------
-# Before starting the panel, verify the database is reachable.
-# Failure here is fatal — we never fall back to SQLite.
-case "${RELAYPANEL_DB_MODE:-}" in
-    embedded-postgres)
-        # Start postgres container first, wait for healthy, then start panel.
-        info "Starting embedded PostgreSQL container ..."
-        # Determine which compose file we'll use (same logic as step 3).
-        if [ "${RELAYPANEL_BUILD_LOCAL:-0}" = "1" ]; then
-            _PRE_COMPOSE="docker-compose.yaml"
-        elif [ -f "docker-compose.release.yaml" ]; then
-            _PRE_COMPOSE="docker-compose.release.yaml"
-        else
-            _PRE_COMPOSE="docker-compose.yaml"
-        fi
-        docker compose -f "$_PRE_COMPOSE" --profile postgres up -d postgres
-
-        info "Waiting for PostgreSQL to become healthy ..."
-        for i in $(seq 1 30); do
-            HEALTH=$(docker inspect --format='{{.State.Health.Status}}' \
-                "$(docker compose -f "$_PRE_COMPOSE" ps -q postgres 2>/dev/null)" 2>/dev/null || echo "unknown")
-            if [ "$HEALTH" = "healthy" ]; then
-                info "PostgreSQL is healthy"
-                break
-            fi
-            sleep 2
-            if [ "$i" -eq 30 ]; then
-                fail "PostgreSQL did not become healthy in 60s. Check: docker compose -f $_PRE_COMPOSE logs postgres"
-            fi
-        done
-        ;;
-    external-postgres)
-        # Verify connectivity with a real psql query (not just pg_isready).
-        # We use a temporary postgres container on the same compose network
-        # so the user doesn't need psql installed on the host.
-        info "Verifying external PostgreSQL connectivity ..."
-        if ! docker run --rm --network host \
-            postgres:16-alpine \
-            psql "${DATABASE_URL}" -v ON_ERROR_STOP=1 -c "SELECT 1" >/dev/null 2>&1; then
-            fail "Cannot connect to external PostgreSQL at $(redact_url "${DATABASE_URL}"). Check host, port, user, password, and database name."
-        fi
-        info "External PostgreSQL is reachable"
-        ;;
-    *)
-        # SQLite — nothing to pre-flight.
-        ;;
+case "$DATABASE_URL" in
+    sqlite:*) ;;
+    *) fail "Only SQLite is supported. DATABASE_URL must start with sqlite:." ;;
 esac
+if ! grep -q '^DATABASE_URL=' .env 2>/dev/null; then
+    printf '\nDATABASE_URL=%s\n' "$DATABASE_URL" >> .env
+    chmod 600 .env
+fi
+export DATABASE_URL
+info "Database backend: SQLite"
 
 # ---------- 2d. Port pre-flight helper ----------
 # Check whether a host port is already in use. Uses the first available tool
@@ -688,13 +504,6 @@ if [ "${RELAYPANEL_WITH_NODE:-0}" = "1" ]; then
     fi
 fi
 
-# PostgreSQL profile: if embedded-postgres was selected, include --profile postgres.
-# The postgres container is already started in step 2c; this ensures compose
-# knows about it when we start the panel.
-if [ "${RELAYPANEL_DB_MODE:-}" = "embedded-postgres" ]; then
-    PROFILE_ARGS+=("--profile" "postgres")
-fi
-
 # Caddy profile: if web mode is caddy, include --profile caddy.
 if [ "$RELAYPANEL_WEB_MODE" = "caddy" ]; then
     PROFILE_ARGS+=("--profile" "caddy")
@@ -727,9 +536,8 @@ fi
 # v1.2.12: `up -d` below replaces the panel with the new version, whose schema
 # migrations run on start. Keep a copy from just before, as the one-click
 # update always did (it runs this script with RELAYPANEL_BACKUP_DONE=1 after
-# taking its own backup). PostgreSQL is not backed up here.
-if [ "$FRESH_INSTALL" = "0" ] && [ "${RELAYPANEL_BACKUP_DONE:-0}" != "1" ] \
-    && { [ -z "${RELAYPANEL_DB_MODE:-}" ] || [ "$RELAYPANEL_DB_MODE" = "sqlite" ]; }; then
+# taking its own backup).
+if [ "$FRESH_INSTALL" = "0" ] && [ "${RELAYPANEL_BACKUP_DONE:-0}" != "1" ]; then
     # Build a source image first, so the panel is not down for the compile.
     if [ "$COMPOSE_FLAGS" = "--build" ]; then
         info "Building images before stopping the panel ..."
@@ -871,7 +679,7 @@ case "$RELAYPANEL_WEB_MODE" in
         echo "  URL:     http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'server-ip'):18888"
         ;;
 esac
-echo "  DB:      ${RELAYPANEL_DB_MODE:-sqlite}"
+echo "  DB:      SQLite"
 echo "  Web:     $(web_mode_label "$RELAYPANEL_WEB_MODE")"
 # Security: we deliberately do NOT print the default admin/admin123 credentials
 # here, nor do we probe them (probing an unchanged default is a needless login

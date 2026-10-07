@@ -4,9 +4,7 @@
 // config.rs, stats.rs, auth.rs, middleware.rs, ws.rs) lives here now.
 // Handlers call `state.db.method()` and never write SQL directly.
 //
-// The SQL itself is UNCHANGED from the v0.4.2 codebase — same SQLite dialect,
-// same ? placeholders, same statements. This is a pure mechanical move,
-// not a rewrite. PR2 will add PgRepository with PostgreSQL-native SQL.
+// All queries use SQLite syntax and `?` placeholders.
 
 use sqlx::SqlitePool;
 

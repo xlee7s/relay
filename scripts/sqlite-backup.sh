@@ -74,10 +74,8 @@ if [ -z "$db_url" ] && [ -f .env ]; then
 fi
 db_url="${db_url:-sqlite:/app/data/data.db?mode=rwc}"
 case "$db_url" in
-    postgres://*|postgresql://*)
-        echo "the panel uses PostgreSQL; no SQLite database to back up" >&2
-        exit 3
-        ;;
+    sqlite:*) ;;
+    *) echo "DATABASE_URL is not a supported SQLite URL" >&2; exit 3 ;;
 esac
 # Read the URL the way the panel (sqlx) does: drop the scheme, then the
 # ?parameters. A relative path is relative to the panel's working dir, /app.
