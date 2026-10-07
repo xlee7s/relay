@@ -202,9 +202,19 @@ pub async fn list_shared_node_summary(
                 sm.ipv6_country_name = entry.country_name;
             }
         }
+        // Regular users may see the node's country, but never its public IP.
+        // Remove all legacy and dual-stack address fields server-side so this
+        // privacy boundary cannot be bypassed by calling the API directly.
+        redact_shared_node_ips(sm);
     }
 
     Json(ApiResponse::success(summaries))
+}
+
+fn redact_shared_node_ips(summary: &mut SharedNodeSummary) {
+    summary.public_ip = None;
+    summary.public_ipv4 = None;
+    summary.public_ipv6 = None;
 }
 
 /// Pure transform of node_status kvs rows into per-NODE [`SharedNodeSummary`]
@@ -494,6 +504,25 @@ mod tests {
         assert!(s.uptime.is_none());
         assert!(s.network_interface.is_none());
         assert!(s.disk_mount.is_none());
+    }
+
+    #[test]
+    fn regular_user_node_summary_keeps_country_but_redacts_every_ip_field() {
+        let now = chrono::Utc::now();
+        let rows = vec![row_full("node_status:8:n1", 3, now)];
+        let mut summary = aggregate_shared_node_summaries(vec![group(8, "g8")], &rows, now)
+            .remove(0);
+        summary.ipv4_country_code = Some("DE".into());
+        summary.ipv4_country_name = Some("德国".into());
+        summary.public_ipv6 = Some("2001:db8::1".into());
+
+        redact_shared_node_ips(&mut summary);
+
+        assert_eq!(summary.ipv4_country_code.as_deref(), Some("DE"));
+        assert_eq!(summary.ipv4_country_name.as_deref(), Some("德国"));
+        assert!(summary.public_ip.is_none());
+        assert!(summary.public_ipv4.is_none());
+        assert!(summary.public_ipv6.is_none());
     }
 
     /// A corrupt-JSON or last_seen-less status row must NOT become a ghost node

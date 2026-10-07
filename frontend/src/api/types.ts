@@ -619,8 +619,10 @@ export interface SharedGroupSummary {
  *  (admin-owned) inbound group, visible to regular users. One row per node; a
  *  group with no reporting node still yields one placeholder row (node_id empty,
  *  online false, metrics null). Group metadata repeats per node row.
- *  v0.4.14: node_id and public_ip ARE exposed to regular users (product
- *  requirement). Still NEVER exposed: token, config, listener_errors, internal
+ *  Public IP fields are retained as optional compatibility members, but the
+ *  current server clears them before returning the regular-user response.
+ *  Users receive country metadata only; administrators receive country + IP
+ *  from /nodes. Still NEVER exposed: token, config, listener_errors, internal
  *  DB fields, install commands, cert/key material. */
 export interface SharedNodeSummary {
   group_id: number;

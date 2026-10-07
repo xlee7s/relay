@@ -114,8 +114,8 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       },
     }] : []),
     {
-      title: t('network'), key: 'network', width: 300,
-      render: (_: unknown, r: NodeDisplayRow) => <NetworkCell row={r} t={t} />,
+      title: t('network'), key: 'network', width: onUpgrade ? 300 : 150,
+      render: (_: unknown, r: NodeDisplayRow) => <NetworkCell row={r} t={t} showIp={Boolean(onUpgrade)} />,
     },
     {
       title: t('connections'), dataIndex: 'connections', key: 'connections', width: 70,

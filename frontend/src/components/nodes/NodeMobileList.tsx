@@ -83,7 +83,7 @@ export function NodeMobileList({ rows, panelProtocol, latestNodeVersion = '', no
                 </Button>
               </span>
             </div>
-            <NetworkCell row={r} t={t} />
+            <NetworkCell row={r} t={t} showIp={Boolean(onUpgrade)} />
             {/* The rate/uptime line used a hardcoded #888 (3.5:1 on white,
                 under AA) and could not be greyed further on an offline card.
                 Both now come from the theme. */}
