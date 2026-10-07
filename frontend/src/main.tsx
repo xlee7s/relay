@@ -12,9 +12,19 @@ import '@fontsource/noto-sans-sc/400.css';
 import '@fontsource/noto-sans-sc/500.css';
 import './index.css'
 import App from './App.tsx'
+import { loadSite } from './hooks/useSite.ts'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Resolve public branding before the first paint. The HTML title is
+// intentionally empty, so a custom installation never flashes "relaypanel".
+async function bootstrap() {
+  const initialSite = await loadSite();
+  document.title = initialSite.site_name || 'relay';
+
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+void bootstrap();

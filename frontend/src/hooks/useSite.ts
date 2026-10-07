@@ -35,6 +35,13 @@ function fetchSite(): Promise<PublicSite> {
   return cached;
 }
 
+/** Load the public brand before the React tree is mounted. This prevents the
+ * browser tab from briefly showing a hard-coded product name before replacing
+ * it with the operator's configured site name. */
+export function loadSite(): Promise<PublicSite> {
+  return fetchSite();
+}
+
 /** Drop the cache; re-fetch only if something is currently displaying it.
  *  With nothing mounted there is no one to notify and the next mount will
  *  fetch anyway, so an eager request would be pure waste. */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spin, Result, Empty, Modal, message } from 'antd';
-import { LineChartOutlined } from '@ant-design/icons';
+import { CloudServerOutlined } from '@ant-design/icons';
 import api from '../api/client';
 import type { ApiEnvelope, NodeStatus, SharedNodeSummary, NodeDisplayRow, NodeLiveRate } from '../api/types';
 import { useI18n } from '../i18n/context';
@@ -210,7 +210,7 @@ export default function NodeStatus() {
   if (loadFailed) {
     return (
       <>
-        <h2 className="rp-page-title"><LineChartOutlined /> {title}</h2>
+        <h2 className="rp-page-title"><CloudServerOutlined /> {title}</h2>
         <Result status="warning" title={t('loadFailed')} subTitle={t('loadFailedRetry')} />
       </>
     );
@@ -224,7 +224,7 @@ export default function NodeStatus() {
   if (groups.length === 0) {
     return (
       <>
-        <h2 className="rp-page-title"><LineChartOutlined /> {title}</h2>
+        <h2 className="rp-page-title"><CloudServerOutlined /> {title}</h2>
         <Result
           status="info"
           icon={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
@@ -250,7 +250,7 @@ export default function NodeStatus() {
 
   return (
     <>
-      <h2 className="rp-page-title"><LineChartOutlined /> {title}</h2>
+      <h2 className="rp-page-title"><CloudServerOutlined /> {title}</h2>
       {groups.map(([gid, groupRows]) => (
         <NodeGroupSection
           key={gid}

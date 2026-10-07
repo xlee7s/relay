@@ -633,16 +633,17 @@ body {
   overflow: hidden;
   padding: 44px 24px;
   background:
-    linear-gradient(145deg, rgba(5, 17, 36, 0.96), rgba(12, 31, 60, 0.94)),
-    #081426;
+    radial-gradient(circle at 15% 12%, rgba(79, 109, 245, 0.13), transparent 28rem),
+    radial-gradient(circle at 88% 86%, rgba(33, 184, 213, 0.11), transparent 30rem),
+    linear-gradient(145deg, #edf2f8, #f7f9fc 58%, #eef4f8);
 }
 
 .rp-auth-page::before {
   position: absolute;
   inset: 0;
   content: "";
-  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(66, 83, 112, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(66, 83, 112, 0.045) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: radial-gradient(circle at center, #000, transparent 78%);
 }
@@ -676,13 +677,13 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.72) !important;
   border-radius: 24px !important;
   background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 35px 90px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 28px 70px rgba(43, 59, 86, 0.16);
   backdrop-filter: blur(20px);
 }
 
 .rp-auth-card:hover {
   transform: none;
-  box-shadow: 0 35px 90px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 28px 70px rgba(43, 59, 86, 0.16);
 }
 
 .rp-auth-card .ant-card-body {
@@ -931,9 +932,10 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 18% -4%, rgba(74, 111, 255, 0.34), transparent 17rem),
-    linear-gradient(180deg, #101b30 0%, #0b1527 62%, #091221 100%) !important;
-  box-shadow: 12px 0 38px rgba(11, 22, 40, 0.12);
+    radial-gradient(circle at 12% -4%, rgba(74, 111, 255, 0.12), transparent 18rem),
+    linear-gradient(180deg, #f8faff 0%, #f1f5fa 58%, #edf2f7 100%) !important;
+  border-right: 1px solid #dce3ed;
+  box-shadow: 10px 0 32px rgba(35, 51, 77, 0.07);
 }
 
 .rp-sidebar .ant-layout-sider-children {
@@ -943,6 +945,7 @@ body {
 .rp-brand {
   height: 84px;
   padding: 0 22px;
+  border-bottom-color: #dfe6ef;
 }
 
 .rp-brand-mark {
@@ -954,6 +957,7 @@ body {
 }
 
 .rp-brand-name {
+  color: #1d2b43;
   font-size: 17px;
   letter-spacing: 0;
 }
@@ -962,7 +966,16 @@ body {
   padding: 18px 14px 96px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  color: #5b687b;
+  scrollbar-color: #c7d1df transparent;
+}
+
+.rp-main-menu .ant-menu-item-selected {
+  box-shadow: inset 0 0 0 1px #ccd8ff, 0 7px 18px rgba(51, 92, 255, 0.09);
+}
+
+.rp-main-menu .ant-menu-item-selected::before {
+  background: #335cff;
 }
 
 .rp-main-menu .ant-menu-item,
@@ -977,9 +990,9 @@ body {
 .rp-main-menu .ant-menu-sub.ant-menu-inline {
   margin: 4px 0 9px;
   padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.045);
+  border: 1px solid #dde5ef;
   border-radius: 13px;
-  background: rgba(0, 0, 0, 0.13) !important;
+  background: rgba(229, 235, 243, 0.72) !important;
 }
 
 .rp-main-menu .ant-menu-sub .ant-menu-item {
@@ -999,16 +1012,17 @@ body {
   min-height: 62px;
   padding: 11px 13px;
   gap: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid #d7e0eb;
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 24px rgba(38, 54, 82, 0.07);
   backdrop-filter: blur(12px);
 }
 
 .rp-sidebar-avatar.ant-avatar {
   flex: 0 0 auto;
-  color: #e9edff;
-  background: rgba(103, 128, 255, 0.22);
+  color: #335cff;
+  background: #e3eaff;
 }
 
 .rp-sidebar-profile-copy {
@@ -1020,7 +1034,7 @@ body {
 
 .rp-sidebar-profile-copy strong {
   overflow: hidden;
-  color: #f6f8ff;
+  color: #26344a;
   font-size: 13px;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -1028,7 +1042,7 @@ body {
 }
 
 .rp-sidebar-profile-copy span {
-  color: #8c9ab0;
+  color: #7a879a;
   font-size: 11px;
 }
 

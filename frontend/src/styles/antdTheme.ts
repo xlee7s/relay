@@ -1,6 +1,6 @@
 import type { ThemeConfig } from 'antd';
 
-// RelayPanel — deep ocean navigation and luminous blue content surfaces.
+// RelayPanel — airy navigation and luminous blue content surfaces.
 // Shared tokens keep every page and every Ant Design component visually aligned.
 export const rpTheme: ThemeConfig = {
   token: {
@@ -33,13 +33,13 @@ export const rpTheme: ThemeConfig = {
   },
   components: {
     Menu: {
-      darkItemBg: 'transparent',
-      darkSubMenuItemBg: 'transparent',
-      darkItemColor: '#91a1b8',
-      darkItemHoverColor: '#f7f9ff',
-      darkItemHoverBg: 'rgba(255,255,255,0.065)',
-      darkItemSelectedBg: 'rgba(92,115,245,0.21)',
-      darkItemSelectedColor: '#f3f6ff',
+      itemBg: 'transparent',
+      subMenuItemBg: 'transparent',
+      itemColor: '#5b687b',
+      itemHoverColor: '#2449dc',
+      itemHoverBg: '#edf2ff',
+      itemSelectedBg: '#e4ebff',
+      itemSelectedColor: '#2449dc',
       itemBorderRadius: 12,
     },
     Button: {
@@ -62,9 +62,9 @@ export const rpTheme: ThemeConfig = {
     Layout: {
       bodyBg: '#f3f6fb',
       headerBg: 'rgba(255,255,255,0.8)',
-      siderBg: '#081426',
-      triggerBg: '#06101f',
-      triggerColor: '#91a1b8',
+      siderBg: '#f3f6fa',
+      triggerBg: '#edf2f8',
+      triggerColor: '#5b687b',
     },
     Tabs: {
       inkBarColor: '#4f6df5',

@@ -162,7 +162,7 @@ export default function MainLayout() {
           <span className="rp-brand-name">{site.site_name || t('brand')}</span>
         </div>
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[location.pathname]}
           defaultOpenKeys={openKeys}
