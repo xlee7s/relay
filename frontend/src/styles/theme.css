@@ -1177,19 +1177,19 @@ body {
 }
 
 .rp-page-title::before {
-  width: 38px;
-  height: 38px;
-  border: 1px solid #dbe2ff;
-  border-radius: 12px;
-  background: #eef2ff;
-  box-shadow: none;
-  content: "";
+  display: none;
 }
 
 .rp-page-title > .anticon {
-  position: absolute;
-  left: 11px;
-  z-index: 1;
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbe2ff;
+  border-radius: 12px;
+  background: #eef2ff;
   color: var(--rp-primary);
   font-size: 17px;
 }
@@ -1490,13 +1490,10 @@ body {
     font-size: 18px;
   }
 
-  .rp-page-title::before {
+  .rp-page-title > .anticon {
     width: 34px;
     height: 34px;
-  }
-
-  .rp-page-title > .anticon {
-    left: 9px;
+    flex-basis: 34px;
   }
 
   .rp-page-header > .ant-space {
