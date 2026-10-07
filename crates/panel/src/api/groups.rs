@@ -510,8 +510,8 @@ mod tests {
     fn regular_user_node_summary_keeps_country_but_redacts_every_ip_field() {
         let now = chrono::Utc::now();
         let rows = vec![row_full("node_status:8:n1", 3, now)];
-        let mut summary = aggregate_shared_node_summaries(vec![group(8, "g8")], &rows, now)
-            .remove(0);
+        let mut summary =
+            aggregate_shared_node_summaries(vec![group(8, "g8")], &rows, now).remove(0);
         summary.ipv4_country_code = Some("DE".into());
         summary.ipv4_country_name = Some("德国".into());
         summary.public_ipv6 = Some("2001:db8::1".into());
