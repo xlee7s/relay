@@ -9,8 +9,6 @@
 - 🗄️ **部署友好** — SQLite 零配置持久化；面板与节点均支持 amd64 / arm64
 - 🔒 **安全** — 首次登录强制修改密码，节点 Bearer Token 鉴权
 
-完整功能说明与使用文档：**[项目文档](docs/DEPLOYMENT.md)**
-
 ---
 
 ## 安装docker
@@ -69,7 +67,7 @@ cd /opt/relay && git pull --quiet && ./deploy.sh
 以下命令会删除面板容器和程序目录，但默认保留名为 `relay_panel_data` 的 SQLite Docker 数据卷：
 
 ```bash
-cd /opt/relay && docker rm -f $(docker ps -aq) && docker rmi -f $(docker images -q) && rm -rf /opt/relay
+docker rm -f $(docker ps -aq) && docker rmi -f $(docker images -q) && rm -rf /opt/relay
 ```
 
 确认不再需要数据库后，可继续删除数据卷：
