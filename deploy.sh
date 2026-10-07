@@ -708,7 +708,7 @@ if [ "${RELAYPANEL_BUILD_LOCAL:-0}" = "1" ]; then
 elif [ -f "$RELEASE_COMPOSE" ]; then
     # Default: pull pre-built images from GHCR (fast, no compilation).
     # The exact image version comes from docker-compose.release.yaml (e.g.
-    # ghcr.io/xlee7s/realy-node:0.2.1), so bumping the tag there is
+    # ghcr.io/xlee7s/relay-node:0.2.1), so bumping the tag there is
     # what rolls users forward.
     info "Pulling pre-built panel image from GHCR ..."
     COMPOSE_FILE="$RELEASE_COMPOSE"

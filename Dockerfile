@@ -30,7 +30,7 @@ RUN cargo build --release -p relay-node
 
 # ---- Panel runtime ----
 FROM debian:bookworm-slim AS panel
-LABEL org.opencontainers.image.source="https://github.com/xlee7s/realy" \
+LABEL org.opencontainers.image.source="https://github.com/xlee7s/relay" \
       org.opencontainers.image.title="Realy Panel" \
       org.opencontainers.image.licenses="Apache-2.0"
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
@@ -57,7 +57,7 @@ CMD ["./relay-panel"]
 
 # ---- Node runtime ----
 FROM debian:bookworm-slim AS node
-LABEL org.opencontainers.image.source="https://github.com/xlee7s/realy" \
+LABEL org.opencontainers.image.source="https://github.com/xlee7s/relay" \
       org.opencontainers.image.title="Realy Node" \
       org.opencontainers.image.licenses="Apache-2.0"
 # v1.0.5: iproute2 provides the `ip` command used to resolve an interface's
@@ -81,7 +81,7 @@ ENTRYPOINT ["./relay-node"]
 # produce `linux/amd64` and `linux/arm64` images from their respective native
 # runners without QEMU or cross-compilation toolchains.
 FROM debian:bookworm-slim AS panel-release
-LABEL org.opencontainers.image.source="https://github.com/xlee7s/realy" \
+LABEL org.opencontainers.image.source="https://github.com/xlee7s/relay" \
       org.opencontainers.image.title="Realy Panel" \
       org.opencontainers.image.licenses="Apache-2.0"
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \

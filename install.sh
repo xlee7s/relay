@@ -3,14 +3,14 @@
 # RelayPanel one-line installer for Linux (Debian / Ubuntu).
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
 #
 
 # Touch: trigger script-check CI on version-only PRs (paths filter otherwise skips it).
 # What it does:
 #   1. Verifies Linux + root
 #   2. Installs git, curl, ca-certificates, openssl (apt)
-#   3. Clones (or updates) the repo into /opt/realy (quiet by default;
+#   3. Clones (or updates) the repo into /opt/relay (quiet by default;
 #      set DEBUG=1 to see raw git output)
 #   4. Runs deploy.sh inside that directory
 #
@@ -21,8 +21,8 @@
 #
 set -euo pipefail
 
-INSTALL_DIR="/opt/realy"
-REPO_URL="https://github.com/xlee7s/realy.git"
+INSTALL_DIR="/opt/relay"
+REPO_URL="https://github.com/xlee7s/relay.git"
 
 # DEBUG=1 shows full git output during clone/pull (default: quiet, clean status
 # lines only). Most users want a clean install log without a wall of git diff

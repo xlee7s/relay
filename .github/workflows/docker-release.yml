@@ -5,7 +5,7 @@ name: Docker Release
 # the panel GitHub Release (body from CHANGELOG.md). The node image, node
 # binaries, and node Release are published by node-release.yml on `node-v*` tags
 # — a panel-only update no longer rebuilds or republishes any node artifact, and
-# realy-node:latest is untouched by a panel release.
+# relay-node:latest is untouched by a panel release.
 #
 # v1.3: panel image is now a multi-arch manifest (linux/amd64 + linux/arm64).
 # Each architecture compiles natively on its own runner — no QEMU, no cross-toolchain.
@@ -37,7 +37,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/xlee7s/realy-panel
+  IMAGE: ghcr.io/xlee7s/relay-panel
 
 jobs:
   build-frontend:

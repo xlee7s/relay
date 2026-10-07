@@ -13,9 +13,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xlee7s/realy/releases/latest"><img src="https://img.shields.io/github/v/release/xlee7s/realy?style=flat-square&label=Release&color=blue" alt="Release" /></a>
-  <a href="https://github.com/xlee7s/realy/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/xlee7s/realy/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/xlee7s/realy?style=flat-square&label=License&color=blue" alt="License" /></a>
+  <a href="https://github.com/xlee7s/relay/releases/latest"><img src="https://img.shields.io/github/v/release/xlee7s/relay?style=flat-square&label=Release&color=blue" alt="Release" /></a>
+  <a href="https://github.com/xlee7s/relay/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/xlee7s/relay/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/xlee7s/relay?style=flat-square&label=License&color=blue" alt="License" /></a>
 </p>
 
 <p align="center">
@@ -46,7 +46,7 @@ Full feature reference and user docs: **[Project documentation](docs/DEPLOYMENT.
 **One command deploy:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
 ```
 
 > 🔑 **Default login `admin` / `admin123` — first login forces a password change.**
@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
 One-click update relies on an updater that a manual update installs, so **v1.2.10 and earlier need one manual update first** (back up `.env` and your database):
 
 ```bash
-cd /opt/realy && git pull --quiet && ./deploy.sh
+cd /opt/relay && git pull --quiet && ./deploy.sh
 ```
 
 **Nodes**: Panel → Node Status → click "Upgrade". No SSH. systemd nodes only (Docker nodes update the image instead). From node-v1.2.5, a node about to restart stops accepting, reports the traffic counted so far and gives open connections up to 5 s to finish; long-lived connections (tunnels, VPNs) are still cut. See the [node documentation](docs/NODE.md#update).

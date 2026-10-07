@@ -9,7 +9,7 @@ resolver = "2"
 [workspace.package]
 license = "Apache-2.0"
 edition = "2021"
-repository = "https://github.com/xlee7s/realy"
+repository = "https://github.com/xlee7s/relay"
 
 [profile.release]
 strip = true

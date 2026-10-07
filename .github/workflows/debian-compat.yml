@@ -110,4 +110,4 @@ jobs:
 
       - name: Diagnostics — panel port mapping
         if: failure()
-        run: docker port realy-panel-1 || true
+        run: docker port relay-panel-1 || true

@@ -367,7 +367,7 @@ export const enUS: Dict = {
   nodeUpgrade: 'Update',
   nodeUpgradeTip: 'Upgrade to v{v}',
   nodeUpgradeLatest: 'Up to date',
-  nodeUpgradeDocker: 'Docker deploy: pull the latest realy-node image and recreate the container (no binary self-replace)',
+  nodeUpgradeDocker: 'Docker deploy: pull the latest relay-node image and recreate the container (no binary self-replace)',
   nodeUpgradeManual: 'Manual run: one-click upgrade unavailable (nothing would restart it)',
   nodeWsDown: 'Polling only',
   nodeWsDownTip: 'The WebSocket control channel is down. Forwarding and status reports still work (over HTTP polling), but config changes take up to ~10 s to apply and remote upgrade and diagnosis cannot reach this node. Usually an unstable link between node and panel — see why on the node: journalctl -u relay-node | grep -i websocket',

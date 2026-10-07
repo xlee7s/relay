@@ -43,7 +43,7 @@ uname -m
 写好 systemd 服务并启动：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
   -t <NODE_TOKEN> \
   -u https://your-panel.example.com
 ```
@@ -76,7 +76,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/scripts/re
 ARCH=amd64   # 或 arm64
 VERSION=1.0.3
 curl -fL -o relay-node \
-  "https://github.com/xlee7s/realy/releases/download/v${VERSION}/relay-node-linux-${ARCH}"
+  "https://github.com/xlee7s/relay/releases/download/v${VERSION}/relay-node-linux-${ARCH}"
 
 # 2. 加可执行权限，放到固定位置
 chmod +x relay-node
@@ -216,7 +216,7 @@ SSH 登录节点。
 | 安装方式 | 节点状态页表现 |
 | --- | --- |
 | **systemd** | 蓝色升级按钮，落后且在线时可一键升级 |
-| **Docker** | 黄色提示「请更新镜像」——拉最新 `realy-node` 镜像重建容器 |
+| **Docker** | 黄色提示「请更新镜像」——拉最新 `relay-node` 镜像重建容器 |
 | **手动运行**（nohup / screen / 直接跑二进制） | 灰色禁用，提示「退出后无人拉起」 |
 
 显示「手动运行：不支持一键升级」的节点，在该节点上重跑一次方式 B 的对接命令即可
@@ -229,7 +229,7 @@ SSH 登录节点。
 不用自己记：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
   -t <NODE_TOKEN> \
   -u https://your-panel.example.com
 ```
@@ -272,7 +272,7 @@ rm -rf /opt/relay-node
 
 ## 故障排查
 
-> 面板部署问题请查看 **[GitHub Issues](https://github.com/xlee7s/realy/issues)**。下面是节点侧的速查。
+> 面板部署问题请查看 **[GitHub Issues](https://github.com/xlee7s/relay/issues)**。下面是节点侧的速查。
 
 ### 节点在面板里显示「离线」
 - 检查 `systemctl status relay-node` 是否 `active (running)`
@@ -362,12 +362,12 @@ GitHub Releases 在国内访问可能很慢。可以：
 VERSION=1.0.3
 ARCH=amd64   # 或 arm64
 curl -fL -o relay-node \
-  "https://github.com/xlee7s/realy/releases/download/v${VERSION}/relay-node-linux-${ARCH}"
+  "https://github.com/xlee7s/relay/releases/download/v${VERSION}/relay-node-linux-${ARCH}"
 ```
 
 然后按[手动 systemd 配置](#手动-systemd-配置)运行。
 
-所有已发布版本和资产见 [Releases 页面](https://github.com/xlee7s/realy/releases)。
+所有已发布版本和资产见 [Releases 页面](https://github.com/xlee7s/relay/releases)。
 
 ---
 

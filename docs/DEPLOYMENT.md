@@ -13,16 +13,16 @@ only supported runtime.
 ## One-line install
 
 The easiest path — a single command that installs `git`/`curl`/`ca-certificates`/`openssl`,
-clones the repo into `/opt/realy`, then runs `deploy.sh` (which installs
+clones the repo into `/opt/relay`, then runs `deploy.sh` (which installs
 Docker, generates secrets, builds, and verifies):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
 ```
 
 Run as root (default on most VPS / cloud servers). If logged in as a non-root
 user, prefix with `sudo`. Debian / Ubuntu only.
-The script refuses to overwrite a non-git directory at `/opt/realy`.
+The script refuses to overwrite a non-git directory at `/opt/relay`.
 
 ---
 
@@ -47,7 +47,7 @@ Two ways to run the stack:
 
 | Mode | What it does | When to use |
 |------|-------------|-------------|
-| **Pre-built (default)** | Pulls images from GHCR (`ghcr.io/xlee7s/realy-panel:x.y.z` and `ghcr.io/xlee7s/realy-node:x.y.z`). No compilation on the server. | **Recommended** for production. Fast (~30s). |
+| **Pre-built (default)** | Pulls images from GHCR (`ghcr.io/xlee7s/relay-panel:x.y.z` and `ghcr.io/xlee7s/relay-node:x.y.z`). No compilation on the server. | **Recommended** for production. Fast (~30s). |
 | **Source build** | Builds images locally from source (`docker-compose.yaml`). | Development, offline servers, or custom modifications. |
 
 `deploy.sh` picks the mode automatically:
@@ -68,7 +68,7 @@ Go to Device Groups → Add Group (type: inbound) → copy the **Install Command
 ### 2. Run on the node server
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/scripts/relay-node-install.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/scripts/relay-node-install.sh) \
   -t <token> -u http://<panel-ip>:18888
 ```
 
@@ -99,8 +99,8 @@ rm -rf /opt/relay-node
 ### 1. Clone
 
 ```bash
-git clone https://github.com/xlee7s/realy.git
-cd realy
+git clone https://github.com/xlee7s/relay.git
+cd relay
 ```
 
 ### 2. Generate secrets
@@ -261,7 +261,7 @@ pre-built GHCR images and only restarts the containers (minimal downtime, no
 **0. Back up data** (at least the database + `.env`):
 
 ```bash
-cd /opt/realy
+cd /opt/relay
 # SQLite default lives at data.db; back it up with a timestamp.
 cp -a data.db data.db.bak.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
 cp -a .env .env.bak.$(date +%Y%m%d-%H%M%S)
@@ -302,7 +302,7 @@ curl -I http://127.0.0.1:18888/login                # 200/302 = healthy
 If you prefer raw `docker compose` (skipping `deploy.sh`'s checks):
 
 ```bash
-cd /opt/realy
+cd /opt/relay
 git pull
 docker compose -f docker-compose.release.yaml pull
 docker compose -f docker-compose.release.yaml up -d
@@ -371,7 +371,7 @@ After=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/opt/realy
+WorkingDirectory=/opt/relay
 # .env is read automatically by docker compose
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
@@ -418,7 +418,7 @@ per-binary systemd service — both run inside containers.
 ## Troubleshooting
 
 The full, maintained troubleshooting guide lives at
-**[GitHub Issues](https://github.com/xlee7s/realy/issues)**
+**[GitHub Issues](https://github.com/xlee7s/relay/issues)**
 — panel deployment (PoolTimedOut, PG auth, leftover networks, panel not
 reachable) and node problems (offline, forwarding broken, connection count
 stuck) with the actual commands to run. It is kept in one place so the two

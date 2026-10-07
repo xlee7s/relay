@@ -1,25 +1,25 @@
-# Repository setup for `xlee7s/realy`
+# Repository setup for `xlee7s/relay`
 
 This source tree is configured for:
 
-- Repository: `https://github.com/xlee7s/realy`
-- Panel image: `ghcr.io/xlee7s/realy-panel`
-- Node image: `ghcr.io/xlee7s/realy-node`
-- Docker Compose project name: `realy`
-- Server install directory: `/opt/realy`
+- Repository: `https://github.com/xlee7s/relay`
+- Panel image: `ghcr.io/xlee7s/relay-panel`
+- Node image: `ghcr.io/xlee7s/relay-node`
+- Docker Compose project name: `relay`
+- Server install directory: `/opt/relay`
 
 ## 1. Create and push the repository
 
-Create an empty public repository named `realy` under the `xlee7s` account. Do
+Create an empty public repository named `relay` under the `xlee7s` account. Do
 not add a README, license, or `.gitignore` on GitHub because those files already
 exist here. Then run these commands from this project directory:
 
 ```bash
 git init
 git add .
-git commit -m "Initialize realy repository"
+git commit -m "Initialize relay repository"
 git branch -M main
-git remote add origin https://github.com/xlee7s/realy.git
+git remote add origin https://github.com/xlee7s/relay.git
 git push -u origin main
 ```
 
@@ -50,20 +50,20 @@ The tags trigger these workflows:
   creates the `node-v1.2.6` release.
 
 Wait for both workflows to finish successfully. In the account package
-settings, change `realy-panel` and `realy-node` to **Public** so servers can pull
+settings, change `relay-panel` and `relay-node` to **Public** so servers can pull
 them without a GHCR login.
 
 ## 4. Verify before announcing the installer
 
 ```bash
-docker pull ghcr.io/xlee7s/realy-panel:1.2.12
-docker pull ghcr.io/xlee7s/realy-node:1.2.6
+docker pull ghcr.io/xlee7s/relay-panel:1.2.12
+docker pull ghcr.io/xlee7s/relay-node:1.2.6
 ```
 
 After both pulls succeed anonymously, the public installer is ready:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
 ```
 
 For a temporary source build before the packages exist, clone the repository

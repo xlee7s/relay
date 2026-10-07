@@ -364,7 +364,7 @@ export const zhCN = {
   nodeUpgrade: '节点更新',
   nodeUpgradeTip: '升级到 v{v}',
   nodeUpgradeLatest: '已是最新',
-  nodeUpgradeDocker: 'Docker 部署：请拉取最新 realy-node 镜像并重建容器（不支持二进制自替换）',
+  nodeUpgradeDocker: 'Docker 部署：请拉取最新 relay-node 镜像并重建容器（不支持二进制自替换）',
   nodeUpgradeManual: '手动运行：不支持一键升级（退出后无人拉起）',
   nodeWsDown: '仅轮询',
   nodeWsDownTip: 'WebSocket 控制通道没连上。转发和状态上报都正常（走 HTTP 轮询），但配置改动最多约 10 秒后才生效，也无法远程升级或诊断。多半是节点到面板的网络不稳，在节点上看原因：journalctl -u relay-node | grep -i websocket',

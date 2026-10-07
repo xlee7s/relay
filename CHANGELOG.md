@@ -263,7 +263,7 @@ need `node-v1.2.5`; older nodes keep showing their 10 s figure.
 - **One-click panel update.** "Update now" on the dashboard now updates the
   panel instead of linking to the manual steps — like the nodes' one-click
   upgrade, for installations made with the install script (under
-  `/opt/realy`, on a systemd host).
+  `/opt/relay`, on a systemd host).
 
   The panel cannot do this itself the way a node does: it runs in a container,
   and replacing a container's own image from inside requires mounting the
@@ -581,7 +581,7 @@ No schema change and nothing to reconfigure: pull the image and restart.
   locked out of their own panel is the last person who should be debugging
   shell escaping.
 
-      docker exec realy-panel-1 ./relay-panel reset-admin-password
+      docker exec relay-panel-1 ./relay-panel reset-admin-password
 
   The password is generated, not taken from the arguments — anything passed on
   a command line lands in shell history and is visible to `ps` on a shared
@@ -1060,7 +1060,7 @@ nothing to reconfigure: upgrade the panel image and you're done.
   are tagged `vX.Y.Z` and node releases `node-vX.Y.Z`; the two version numbers
   no longer have to match. The `v*` tag builds ONLY the panel image + panel
   GitHub Release; the `node-v*` tag builds ONLY the node binaries + node image
-  + node GitHub Release. `realy-node:latest` is untouched by a panel
+  + node GitHub Release. `relay-node:latest` is untouched by a panel
   release, and vice versa. (`docker-release.yml` is now panel-only; a new
   `node-release.yml` handles the node track; `binary-release.yml` was removed.)
 - **The Dockerfile compiles only what each image needs** (`panel-build` /

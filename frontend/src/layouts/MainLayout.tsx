@@ -198,7 +198,7 @@ export default function MainLayout() {
                 type="text"
                 size="small"
                 icon={<GithubOutlined />}
-                href="https://github.com/xlee7s/realy"
+                href="https://github.com/xlee7s/relay"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="GitHub"

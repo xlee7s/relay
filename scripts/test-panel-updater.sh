@@ -31,7 +31,7 @@ setup() {
     mkdir -p "$REPO/scripts" "$REPO/run" "$STATE/data" "$STUBS"
     cp "$HERE/panel-updater.sh" "$HERE/sqlite-backup.sh" "$REPO/scripts/"
     echo "$1" > "$STATE/version"
-    compose() { printf 'services:\n  panel:\n    image: ghcr.io/xlee7s/realy-panel:${RELAYPANEL_PANEL_TAG:-%s}\n' "$1"; }
+    compose() { printf 'services:\n  panel:\n    image: ghcr.io/xlee7s/relay-panel:${RELAYPANEL_PANEL_TAG:-%s}\n' "$1"; }
     compose "$1" > "$REPO/docker-compose.release.yaml"
     compose "$2" > "$STATE/compose-after-pull"
     : > "$REPO/.env"

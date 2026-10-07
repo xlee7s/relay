@@ -129,7 +129,7 @@ if ! git -c safe.directory="$ROOT" pull --ff-only --quiet >>"$LOG.run" 2>&1; the
 fi
 
 RELEASE_COMPOSE="docker-compose.release.yaml"
-TARGET="$(grep -o 'realy-panel:\${RELAYPANEL_PANEL_TAG:-[^}]*}' "$RELEASE_COMPOSE" 2>/dev/null \
+TARGET="$(grep -o 'relay-panel:\${RELAYPANEL_PANEL_TAG:-[^}]*}' "$RELEASE_COMPOSE" 2>/dev/null \
     | head -1 | sed 's/.*:-\([^}]*\)}/\1/')"
 log "release compose now pins panel ${TARGET:-unknown}"
 if [ -n "$TARGET" ] && [ "$TARGET" = "$FROM" ]; then

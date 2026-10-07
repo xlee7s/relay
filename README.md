@@ -13,9 +13,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/xlee7s/realy/releases/latest"><img src="https://img.shields.io/github/v/release/xlee7s/realy?style=flat-square&label=Release&color=blue" alt="Release" /></a>
-  <a href="https://github.com/xlee7s/realy/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/xlee7s/realy/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/xlee7s/realy?style=flat-square&label=License&color=blue" alt="License" /></a>
+  <a href="https://github.com/xlee7s/relay/releases/latest"><img src="https://img.shields.io/github/v/release/xlee7s/relay?style=flat-square&label=Release&color=blue" alt="Release" /></a>
+  <a href="https://github.com/xlee7s/relay/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/xlee7s/relay/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/xlee7s/relay?style=flat-square&label=License&color=blue" alt="License" /></a>
 </p>
 
 <p align="center">
@@ -45,7 +45,7 @@
 **一条命令部署：**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/main/install.sh | bash
 ```
 
 > 🔑 **默认账号 `admin` / `admin123`，首次登录强制修改密码。**
@@ -77,7 +77,7 @@ curl -fsSL https://raw.githubusercontent.com/xlee7s/realy/main/install.sh | bash
 一键更新依赖服务器上的更新服务，它会在手动更新时装好。所以 **v1.2.10 及更早版本需要先手动更新一次**，之后就能一键更新（更新前请备份 `.env` 和数据库）：
 
 ```bash
-cd /opt/realy && git pull --quiet && ./deploy.sh
+cd /opt/relay && git pull --quiet && ./deploy.sh
 ```
 
 **节点**：面板 → 节点状态 → 点「升级」，无需 SSH。仅 systemd 节点可用（Docker 节点改为更新镜像）。node-v1.2.5 起，节点重启前会停止接新连接、补报已计数的流量，并给进行中的连接最多 5 秒收尾；长连接（隧道、VPN）仍会断开。详见 [转发节点文档](docs/NODE.zh-CN.md#更新)。

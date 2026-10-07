@@ -14,14 +14,14 @@
 # shorter than 32 characters (deploy.sh replaces a short one in .env).
 # ============================================================================
 
-name: realy
+name: relay
 
 services:
   panel:
     build:
       context: .
       target: panel
-    image: ghcr.io/xlee7s/realy-panel:local
+    image: ghcr.io/xlee7s/relay-panel:local
     ports:
       # RELAYPANEL_WEB_MODE controls how the panel port is published:
       #   direct         → 0.0.0.0:18888:18888  (public, default)
@@ -64,7 +64,7 @@ services:
     build:
       context: .
       target: node
-    image: ghcr.io/xlee7s/realy-node:local
+    image: ghcr.io/xlee7s/relay-node:local
     # Node is opt-in via --profile node. Most deployments run relay-node on a
     # separate server. To also run node on this host:
     #   docker compose --profile node up -d
