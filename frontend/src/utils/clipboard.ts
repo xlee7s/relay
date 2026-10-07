@@ -7,8 +7,6 @@
  *
  *   1. navigator.clipboard.writeText (modern, HTTPS only)
  *   2. hidden textarea + execCommand('copy') (works on HTTP)
- *   3. Selection API fallback
- *
  * Returns true only when the copy genuinely succeeded.
  */
 export async function copyText(text: string): Promise<boolean> {
@@ -24,49 +22,39 @@ export async function copyText(text: string): Promise<boolean> {
     }
   }
 
-  // Method 2: hidden textarea + execCommand('copy')
-  // Works in HTTP contexts. Some browsers require the element to be
-  // focused and selected before execCommand works.
+  // Method 2: off-screen textarea + execCommand('copy'). This runs
+  // synchronously inside the click event, which is important on browsers that
+  // require a user gesture. Do not replace the textarea's native selection
+  // with a DOM Range: a textarea's value is not a child text node, so doing so
+  // selects an empty element and can make the browser copy an empty string.
+  let textarea: HTMLTextAreaElement | null = null;
   try {
-    const textarea = document.createElement('textarea');
+    textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.setAttribute('readonly', '');
+    textarea.setAttribute('aria-hidden', 'true');
     textarea.style.position = 'fixed';
     textarea.style.top = '0';
-    textarea.style.left = '0';
-    textarea.style.width = '1px';
-    textarea.style.height = '1px';
+    textarea.style.left = '-9999px';
+    textarea.style.width = '2px';
+    textarea.style.height = '2px';
     textarea.style.padding = '0';
     textarea.style.border = 'none';
     textarea.style.outline = 'none';
     textarea.style.boxShadow = 'none';
     textarea.style.background = 'transparent';
-    textarea.style.opacity = '0';
     document.body.appendChild(textarea);
 
-    // Focus and select
-    textarea.focus();
+    textarea.focus({ preventScroll: true });
     textarea.select();
     textarea.setSelectionRange(0, textarea.value.length);
 
-    // Also try selecting via the Selection API
-    const range = document.createRange();
-    range.selectNodeContents(textarea);
-    const sel = window.getSelection();
-    if (sel) {
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-
     const ok = document.execCommand('copy');
-    document.body.removeChild(textarea);
-
-    // Clear selection
-    if (sel) sel.removeAllRanges();
-
     if (ok) return true;
   } catch {
     // Fall through
+  } finally {
+    textarea?.remove();
   }
 
   // All methods failed
