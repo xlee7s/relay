@@ -112,12 +112,13 @@ characters). Generate one:
     cat > .env <<EOF
 JWT_SECRET=$(openssl rand -hex 32)
 PANEL_KEY=$(openssl rand -hex 16)
-MYSQL_PASSWORD=$(openssl rand -hex 16)
-MYSQL_ROOT_PASSWORD=$(openssl rand -hex 16)
 NODE_TOKEN=<paste a node token from the UI later>
 # Optional: set when the panel is behind a domain/reverse proxy so the
 # "Copy Install Command" button emits the right URL for nodes.
 PUBLIC_PANEL_URL=https://panel.example.com
+# DATABASE_URL controls the database backend.  Defaults to SQLite.
+# See "Database modes" section below.
+DATABASE_URL=sqlite:/app/data/data.db?mode=rwc
 EOF
     chmod 600 .env
     ```
@@ -126,18 +127,36 @@ EOF
     > in the panel UI after first login, copy its token, then update `.env` and
     > `docker compose restart node`.
 
-    ### Database
+    ### Database modes
 
-    MySQL 5.7 is the only production database. Docker Compose starts the
-    bundled `mysql:5.7` service, waits for its health check, and stores data in
-    the `mysql_data` volume. `deploy.sh` generates `MYSQL_PASSWORD` and
-    `MYSQL_ROOT_PASSWORD` automatically on first install.
+    RelayPanel supports three database modes, controlled by `DATABASE_URL`:
 
-    `DATABASE_URL` must start with `mysql://`. An external MySQL 5.7 server can
-    be used by setting a URL such as
-    `mysql://user:password@db.example.com:3306/relaypanel`; URL-encode special
-    password characters. A connection failure is fatal and never falls back to
-    a local file database.
+    | Mode | DATABASE_URL | What happens |
+    |------|-------------|-------------|
+    | **SQLite** (default) | `sqlite:/app/data/data.db?mode=rwc` | Panel starts directly. No extra containers. |
+    | **PostgreSQL (embedded)** | `postgres://user:pass@postgres:5432/db` | `deploy.sh` starts a `postgres` container (profile), waits for healthy, then starts panel. Set `RELAYPANEL_DB_MODE=embedded-postgres` + `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD` in `.env`. |
+    | **PostgreSQL (external)** | `postgres://user:pass@host:port/db` | `deploy.sh` verifies connectivity with a real `psql` query before starting the panel. Set `RELAYPANEL_DB_MODE=external-postgres`. |
+
+    - `DATABASE_URL` is the **canonical** env var.
+    - `DATABASE_PATH` is a **legacy fallback** — it still works, but new
+      deployments should use `DATABASE_URL`. On upgrade, `deploy.sh` wraps a
+      legacy `DATABASE_PATH` into a `sqlite:` URL **at the same location** (the
+      data file is never moved).
+    - **Fresh install only:** `deploy.sh` shows the interactive backend menu
+      (SQLite / embedded PostgreSQL / external PostgreSQL) when it is the first
+      run (no `.env` yet) on a terminal. Non-interactive installs (e.g.
+      `curl \| bash`) default to SQLite.
+    - **Upgrade:** when `.env` already exists, `deploy.sh` keeps the current
+      backend untouched — no menu, no change to `DATABASE_URL` /
+      `RELAYPANEL_DB_MODE`. It detects the backend and prints one concise line,
+      e.g. `Database backend: SQLite (unchanged)`. Switching between SQLite and
+      PostgreSQL is a manual operation: stop the panel, migrate your data, then
+      edit `.env` yourself.
+    - External PostgreSQL **must** be a full, URL-encoded connection string.
+      Passwords with special characters (`@`, `:`, `#`, `%`, etc.) must be
+      percent-encoded (e.g. `p@ss` → `p%40ss`).
+    - Connection failure is **fatal** — the deploy script never falls back to
+      SQLite when PostgreSQL was configured.
 
     #### `PUBLIC_PANEL_URL` (optional)
 
@@ -243,11 +262,12 @@ pre-built GHCR images and only restarts the containers (minimal downtime, no
 
 ```bash
 cd /opt/relay
-bash scripts/mysql-backup.sh docker-compose.release.yaml manual
+# SQLite default lives at data.db; back it up with a timestamp.
+cp -a data.db data.db.bak.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
 cp -a .env .env.bak.$(date +%Y%m%d-%H%M%S)
 ```
 
-> For an external MySQL server, use that provider's snapshot/backup facility.
+> If `DATABASE_URL` (or legacy `DATABASE_PATH`) points elsewhere, back up that file instead.
 
 **1. Pull latest code:**
 
@@ -384,10 +404,14 @@ per-binary systemd service — both run inside containers.
 - **Caddy** container (profile `caddy`) publishes ports `80`, `443/tcp`, and `443/udp` to the
   host for TLS termination and HTTP/3. The `Caddyfile` proxies to `panel:18888` on the
   Compose network.
-- MySQL 5.7 data persists in the `mysql_data` Docker volume.
+- The SQLite database persists in the `panel_data` Docker volume.
 - The panel process runs as the unprivileged user `relaypanel` (uid/gid
-  10001), not root. The container starts as root only to hand the `./run`
-  update-status mount to that user, then drops privileges.
+  10001), not root. The container starts as root only to hand `/app/data` and
+  the `./run` mount to that user, then drops privileges. If you bind-mount a
+  host directory as `/app/data`, expect it to be owned by uid 10001 on the host.
+  For the CLI, `docker compose exec -u relaypanel panel ./relay-panel …` keeps
+  new files owned correctly (anything created as root is handed back on the
+  next panel start anyway).
 
 ---
 

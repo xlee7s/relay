@@ -1,4 +1,4 @@
-use super::MySqlRepository;
+use super::PgRepository;
 use crate::db::error::DbError;
 use crate::db::repo::*;
 use async_trait::async_trait;
@@ -6,23 +6,28 @@ use relay_shared::models::RedeemCode;
 use relay_shared::money;
 
 // ── RedeemRepository (v1.2.0) ──
+//
+// Same contract as the SQLite impl, but the concurrency guarantee comes from a
+// different place. SQLite serializes writers process-wide, so its transaction
+// is enough on its own; PG allows concurrent writers, so the code row is locked
+// explicitly with SELECT ... FOR UPDATE (the same thing buy_plan does to the
+// user row). Both still make the final claim conditional on status.
 
 #[async_trait]
-impl RedeemRepository for MySqlRepository {
+impl RedeemRepository for PgRepository {
     async fn create_redeem_codes(&self, codes: &[NewRedeemCode]) -> Result<u64, DbError> {
         if codes.is_empty() {
             return Ok(0);
         }
-        let mut tx = self.begin_write().await?;
+        let mut tx = self.pool.begin().await?;
         let mut inserted = 0u64;
         for c in codes {
-            // OR IGNORE: `code` is UNIQUE and generation is random, so a
-            // collision is astronomically unlikely — but if one happens, an
-            // admin who asked for 100 codes would rather receive 99 than an
-            // error and no batch at all. The returned count is the truth.
+            // ON CONFLICT DO NOTHING is PG's INSERT OR IGNORE: a (vanishingly
+            // unlikely) code collision skips that row instead of failing the
+            // whole batch.
             let res = sqlx::query(
-                "INSERT IGNORE INTO redeem_codes (code, amount, expires_at, batch_id, remark) \
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO redeem_codes (code, amount, expires_at, batch_id, remark) \
+                 VALUES ($1, $2, $3, $4, $5) ON CONFLICT (code) DO NOTHING",
             )
             .bind(&c.code)
             .bind(&c.amount)
@@ -43,14 +48,13 @@ impl RedeemRepository for MySqlRepository {
         user_id: i64,
         now: &str,
     ) -> Result<(String, String), RedeemCodeError> {
-        // Lock the code and user rows so concurrent redemptions cannot double
-        // claim one code or lose a balance update from two different codes.
-        let mut tx = self.begin_write().await?;
+        let mut tx = self.pool.begin().await?;
 
-        // Read the code first so we can tell "expired" apart from "not
-        // redeemable" — the user needs to know an expired card isn't a typo.
+        // FOR UPDATE holds the code row for this transaction, so a concurrent
+        // redemption of the same code blocks here instead of reading a stale
+        // 'unused' and racing us to the claim.
         let row: Option<(i64, String, String, Option<String>)> = sqlx::query_as(
-            "SELECT id, amount, status, expires_at FROM redeem_codes WHERE code = ? FOR UPDATE",
+            "SELECT id, amount, status, expires_at FROM redeem_codes WHERE code = $1 FOR UPDATE",
         )
         .bind(code)
         .fetch_optional(&mut *tx)
@@ -64,13 +68,11 @@ impl RedeemRepository for MySqlRepository {
             let _ = tx.rollback().await;
             return Err(RedeemCodeError::NotRedeemable);
         }
-        // Expiry is compared as TEXT: every timestamp in this schema is
-        // 'YYYY-MM-DD HH:MM:SS' UTC, a format where lexicographic order IS
-        // chronological order.
+        // TEXT comparison is chronological: all timestamps are
+        // 'YYYY-MM-DD HH:MM:SS' UTC.
         if let Some(exp) = expires_at.as_deref() {
             if now > exp {
                 let _ = tx.rollback().await;
-                // Left 'unused' on purpose so an admin can extend the batch.
                 return Err(RedeemCodeError::Expired);
             }
         }
@@ -84,12 +86,12 @@ impl RedeemRepository for MySqlRepository {
             RedeemCodeError::Database(DbError::NotFound)
         })?;
 
-        let balance_str: Option<(String,)> =
-            sqlx::query_as("SELECT balance FROM users WHERE id = ? FOR UPDATE")
+        let balance_row: Option<(String,)> =
+            sqlx::query_as("SELECT balance FROM users WHERE id = $1 FOR UPDATE")
                 .bind(user_id)
                 .fetch_optional(&mut *tx)
                 .await?;
-        let Some((balance_str,)) = balance_str else {
+        let Some((balance_str,)) = balance_row else {
             let _ = tx.rollback().await;
             return Err(RedeemCodeError::Database(DbError::NotFound));
         };
@@ -102,20 +104,18 @@ impl RedeemRepository for MySqlRepository {
             RedeemCodeError::Database(DbError::NotFound)
         })?;
 
-        // Top-up ADDS, so unlike buy_plan it can overflow the ceiling. Refuse
-        // rather than persist a balance the panel could no longer write back.
+        // Top-up adds, so it can overflow the ceiling (deduction never could).
         let new_cents = balance_cents
             .checked_add(amount_cents)
             .filter(|c| *c <= money::MAX_BALANCE_CENTS)
             .ok_or(RedeemCodeError::BalanceOverflow)?;
         let new_balance = money::cents_to_balance(new_cents);
 
-        // THE claim. Conditional on status so two concurrent redemptions of the
-        // same code cannot both proceed: exactly one gets rows_affected == 1.
-        // Without the WHERE clause this whole function would be a race.
+        // Still conditional on status even under FOR UPDATE — defence in depth,
+        // and it keeps the two backends' invariants identical.
         let claimed = sqlx::query(
-            "UPDATE redeem_codes SET status = 'used', used_by = ?, used_at = ? \
-             WHERE id = ? AND status = 'unused'",
+            "UPDATE redeem_codes SET status = 'used', used_by = $1, used_at = $2 \
+             WHERE id = $3 AND status = 'unused'",
         )
         .bind(user_id)
         .bind(now)
@@ -128,7 +128,7 @@ impl RedeemRepository for MySqlRepository {
             return Err(RedeemCodeError::NotRedeemable);
         }
 
-        sqlx::query("UPDATE users SET balance = ? WHERE id = ?")
+        sqlx::query("UPDATE users SET balance = $1 WHERE id = $2")
             .bind(&new_balance)
             .bind(user_id)
             .execute(&mut *tx)
@@ -143,7 +143,7 @@ impl RedeemRepository for MySqlRepository {
         // cleared would otherwise be invisible anyway, and this keeps the query
         // honest about what it returns — the user's top-up history.
         Ok(sqlx::query_as(
-            "SELECT * FROM redeem_codes              WHERE used_by = ? AND status = 'used'              ORDER BY used_at DESC, id DESC",
+            "SELECT * FROM redeem_codes              WHERE used_by = $1 AND status = 'used'              ORDER BY used_at DESC, id DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -154,12 +154,10 @@ impl RedeemRepository for MySqlRepository {
         &self,
         filter: &RedeemCodeFilter,
     ) -> Result<Vec<RedeemCode>, DbError> {
-        // COALESCE keeps this one prepared statement for every filter combo
-        // (the same trick the statistics query uses).
         Ok(sqlx::query_as(
             "SELECT * FROM redeem_codes \
-             WHERE status = COALESCE(?, status) AND batch_id = COALESCE(?, batch_id) \
-             ORDER BY id DESC LIMIT ? OFFSET ?",
+             WHERE status = COALESCE($1, status) AND batch_id = COALESCE($2, batch_id) \
+             ORDER BY id DESC LIMIT $3 OFFSET $4",
         )
         .bind(&filter.status)
         .bind(&filter.batch_id)
@@ -172,7 +170,7 @@ impl RedeemRepository for MySqlRepository {
     async fn count_redeem_codes(&self, filter: &RedeemCodeFilter) -> Result<i64, DbError> {
         let (n,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM redeem_codes \
-             WHERE status = COALESCE(?, status) AND batch_id = COALESCE(?, batch_id)",
+             WHERE status = COALESCE($1, status) AND batch_id = COALESCE($2, batch_id)",
         )
         .bind(&filter.status)
         .bind(&filter.batch_id)
@@ -182,10 +180,8 @@ impl RedeemRepository for MySqlRepository {
     }
 
     async fn void_redeem_code(&self, id: i64) -> Result<u64, DbError> {
-        // Only an UNUSED code can be voided. A used one already moved money;
-        // rewriting its status would falsify the audit trail.
         Ok(sqlx::query(
-            "UPDATE redeem_codes SET status = 'void' WHERE id = ? AND status = 'unused'",
+            "UPDATE redeem_codes SET status = 'void' WHERE id = $1 AND status = 'unused'",
         )
         .bind(id)
         .execute(&self.pool)
@@ -197,18 +193,14 @@ impl RedeemRepository for MySqlRepository {
         if ids.is_empty() {
             return Ok(0);
         }
-        let mut tx = self.begin_write().await?;
-        let mut deleted = 0u64;
-        for id in ids {
-            // `status != 'used'` — unused and voided rows are disposable;
-            // a redemption record is not.
-            deleted += sqlx::query("DELETE FROM redeem_codes WHERE id = ? AND status != 'used'")
-                .bind(id)
-                .execute(&mut *tx)
+        // PG can express this as one statement with = ANY($1); a used row is
+        // never eligible.
+        Ok(
+            sqlx::query("DELETE FROM redeem_codes WHERE id = ANY($1) AND status != 'used'")
+                .bind(ids)
+                .execute(&self.pool)
                 .await?
-                .rows_affected();
-        }
-        tx.commit().await?;
-        Ok(deleted)
+                .rows_affected(),
+        )
     }
 }

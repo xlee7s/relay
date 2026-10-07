@@ -1,4 +1,4 @@
-use super::MySqlRepository;
+use super::PgRepository;
 use crate::db::error::DbError;
 use crate::db::repo::*;
 use async_trait::async_trait;
@@ -7,9 +7,9 @@ use relay_shared::models::User;
 // ── UserRepository ──
 
 #[async_trait]
-impl UserRepository for MySqlRepository {
+impl UserRepository for PgRepository {
     async fn find_by_username_not_banned(&self, username: &str) -> Result<Option<User>, DbError> {
-        let user = sqlx::query_as("SELECT * FROM users WHERE username = ? AND banned = 0")
+        let user = sqlx::query_as("SELECT * FROM users WHERE username = $1 AND banned = FALSE")
             .bind(username)
             .fetch_optional(&self.pool)
             .await?;
@@ -17,7 +17,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn find_by_username(&self, username: &str) -> Result<Option<User>, DbError> {
-        let user = sqlx::query_as("SELECT * FROM users WHERE username = ?")
+        let user = sqlx::query_as("SELECT * FROM users WHERE username = $1")
             .bind(username)
             .fetch_optional(&self.pool)
             .await?;
@@ -25,7 +25,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn find_by_id(&self, id: i64) -> Result<Option<User>, DbError> {
-        let user = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+        let user = sqlx::query_as("SELECT * FROM users WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
@@ -33,7 +33,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn find_password_by_id(&self, id: i64) -> Result<Option<String>, DbError> {
-        let row: Option<(String,)> = sqlx::query_as("SELECT password FROM users WHERE id = ?")
+        let row: Option<(String,)> = sqlx::query_as("SELECT password FROM users WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
@@ -41,7 +41,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn find_banned_by_id(&self, id: i64) -> Result<Option<bool>, DbError> {
-        let row: Option<(bool,)> = sqlx::query_as("SELECT banned FROM users WHERE id = ?")
+        let row: Option<(bool,)> = sqlx::query_as("SELECT banned FROM users WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
@@ -50,7 +50,7 @@ impl UserRepository for MySqlRepository {
 
     async fn find_auth_state_by_id(&self, id: i64) -> Result<Option<(bool, i64, bool)>, DbError> {
         let row: Option<(bool, i64, bool)> = sqlx::query_as(
-            "SELECT banned, token_version, must_change_password FROM users WHERE id = ?",
+            "SELECT banned, token_version, must_change_password FROM users WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -59,15 +59,16 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn is_admin(&self, id: i64) -> Result<bool, DbError> {
-        let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM users WHERE id = ? AND admin = 1")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await?;
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM users WHERE id = $1 AND admin = TRUE")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(row.is_some())
     }
 
     async fn exists_by_id(&self, id: i64) -> Result<bool, DbError> {
-        let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM users WHERE id = ?")
+        let row: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM users WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
@@ -80,7 +81,7 @@ impl UserRepository for MySqlRepository {
         password_hash: &str,
         plan_id: i64,
     ) -> Result<(), DbError> {
-        sqlx::query("INSERT INTO users (username, password, plan_id) VALUES (?, ?, ?)")
+        sqlx::query("INSERT INTO users (username, password, plan_id) VALUES ($1, $2, $3)")
             .bind(username)
             .bind(password_hash)
             .bind(plan_id)
@@ -95,40 +96,42 @@ impl UserRepository for MySqlRepository {
         password_hash: &str,
         plan_id: i64,
     ) -> Result<u64, DbError> {
-        // Registration must not produce a user who has the plan's quota but
-        // none of that plan's line authorization. Keep the user row and its
-        // grants on one transaction: a missing plan still yields 0 rows and a
-        // failed grant insert rolls the user creation back.
-        let mut tx = self.begin_write().await?;
-        let result = sqlx::query(
+        // Keep quota and plan authorization in one transaction. PostgreSQL's
+        // default READ COMMITTED isolation would give the INSERT and grant
+        // SELECT independent snapshots, allowing a concurrent plan edit to
+        // create a user with the old grant_all_groups flag but the new group
+        // list (or vice versa). A repeatable-read transaction makes both
+        // statements consume one coherent plan snapshot.
+        //
+        // `RETURNING` preserves the existing missing-plan contract (None → 0
+        // rows) while supplying the new user id for its explicit line grants.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            .execute(&mut *tx)
+            .await?;
+        let inserted: Option<(i64,)> = sqlx::query_as(
             "INSERT INTO users \
              (username, password, plan_id, max_rules, traffic_limit, speed_limit, ip_limit, all_device_groups) \
-             SELECT ?, ?, ?, max_rules, traffic, speed_limit, ip_limit, grant_all_groups \
-             FROM plans WHERE id = ?",
+             SELECT $1, $2, $3, max_rules, traffic, speed_limit, ip_limit, grant_all_groups \
+             FROM plans WHERE id = $3 \
+             RETURNING id",
         )
         .bind(username)
         .bind(password_hash)
         .bind(plan_id)
-        .bind(plan_id)
-        .execute(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
-        if result.rows_affected() == 0 {
+        let Some((user_id,)) = inserted else {
             tx.commit().await?;
             return Ok(0);
-        }
+        };
 
-        let (user_id,): (i64,) = sqlx::query_as("SELECT id FROM users WHERE username = ?")
-            .bind(username)
-            .fetch_one(&mut *tx)
-            .await?;
-        // An all-lines plan is represented exclusively by all_device_groups;
-        // do not retain explicit rows even if legacy plan data contains them.
         sqlx::query(
             "INSERT INTO user_device_groups (user_id, device_group_id) \
-             SELECT ?, pdg.device_group_id \
+             SELECT $1, pdg.device_group_id \
              FROM plan_device_groups pdg \
              JOIN plans p ON p.id = pdg.plan_id \
-             WHERE pdg.plan_id = ? AND p.grant_all_groups = 0",
+             WHERE pdg.plan_id = $2 AND p.grant_all_groups = FALSE",
         )
         .bind(user_id)
         .bind(plan_id)
@@ -140,7 +143,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn update_password(&self, id: i64, new_hash: &str) -> Result<u64, DbError> {
-        let result = sqlx::query("UPDATE users SET password = ? WHERE id = ?")
+        let result = sqlx::query("UPDATE users SET password = $1 WHERE id = $2")
             .bind(new_hash)
             .bind(id)
             .execute(&self.pool)
@@ -149,11 +152,9 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn change_own_password(&self, id: i64, new_hash: &str) -> Result<u64, DbError> {
-        // Atomic: new hash + bump token_version (revoke all sessions) + clear
-        // must_change_password, in one UPDATE.
         let result = sqlx::query(
-            "UPDATE users SET password = ?, token_version = token_version + 1, \
-             must_change_password = 0 WHERE id = ?",
+            "UPDATE users SET password = $1, token_version = token_version + 1, \
+             must_change_password = FALSE WHERE id = $2",
         )
         .bind(new_hash)
         .bind(id)
@@ -169,8 +170,8 @@ impl UserRepository for MySqlRepository {
         must_change_password: bool,
     ) -> Result<u64, DbError> {
         let result = sqlx::query(
-            "UPDATE users SET password = ?, token_version = token_version + 1, \
-             must_change_password = ? WHERE id = ?",
+            "UPDATE users SET password = $1, token_version = token_version + 1, \
+             must_change_password = $2 WHERE id = $3",
         )
         .bind(new_hash)
         .bind(must_change_password)
@@ -189,36 +190,54 @@ impl UserRepository for MySqlRepository {
         banned: Option<bool>,
         suspended: Option<bool>,
     ) -> Result<u64, DbError> {
+        // Build SET clause + bind values in the same field order as SQLite.
+        // PG needs numbered placeholders; we accumulate binds in a Vec and
+        // generate `$1, $2, ...` after we know how many there are.
         let mut sets: Vec<&str> = Vec::new();
         if balance.is_some() {
-            sets.push("balance = ?");
+            sets.push("balance = ");
         }
         if max_rules.is_some() {
-            sets.push("max_rules = ?");
+            sets.push("max_rules = ");
         }
         if traffic_limit.is_some() {
-            sets.push("traffic_limit = ?");
+            sets.push("traffic_limit = ");
         }
         if banned.is_some() {
-            sets.push("banned = ?");
+            sets.push("banned = ");
         }
-        // v1.0.8: suspension. Unlike banned, suspended does NOT bump
-        // token_version (the user stays signed in; forwarding is gated by
-        // list_active_for_config).
+        // v1.0.8: suspension (no token_version bump — user stays signed in).
         if suspended.is_some() {
-            sets.push("suspended = ?");
-        }
-        // v0.4.10 PR4: banning a user revokes their sessions. token_version is
-        // a self-increment expression (no bind), appended only when banning.
-        if banned == Some(true) {
-            sets.push("token_version = token_version + 1");
+            sets.push("suspended = ");
         }
 
         if sets.is_empty() {
             return Ok(0);
         }
 
-        let sql = format!("UPDATE users SET {} WHERE id = ?", sets.join(", "));
+        // Number the placeholders. id is always the last bind.
+        let mut ph = 1;
+        let mut sets_with_ph: Vec<String> = sets
+            .iter()
+            .map(|s| {
+                let p = format!("{s}${ph}");
+                ph += 1;
+                p
+            })
+            .collect();
+        // v0.4.10 PR4: banning revokes sessions via a token_version self-
+        // increment (a literal expression, NOT a bound placeholder), appended
+        // only when banning. Added after the numbered sets so placeholder
+        // numbering is unaffected.
+        if banned == Some(true) {
+            sets_with_ph.push("token_version = token_version + 1".to_string());
+        }
+        let sql = format!(
+            "UPDATE users SET {} WHERE id = ${}",
+            sets_with_ph.join(", "),
+            ph
+        );
+
         let mut q = sqlx::query(&sql);
         if let Some(v) = balance {
             q = q.bind(v);
@@ -248,7 +267,7 @@ impl UserRepository for MySqlRepository {
         plan_expire_at: Option<String>,
     ) -> Result<u64, DbError> {
         let result = sqlx::query(
-            "UPDATE users SET plan_id = ?, plan_expire_at = ? WHERE id = ? AND admin = 0",
+            "UPDATE users SET plan_id = $1, plan_expire_at = $2 WHERE id = $3 AND admin = false",
         )
         .bind(plan_id)
         .bind(plan_expire_at)
@@ -259,29 +278,26 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn clear_user_plan(&self, user_id: i64) -> Result<u64, DbError> {
-        let mut tx = self.begin_write().await?;
-        // Clear plan association + revoke the all-groups flag in one UPDATE.
+        let mut tx = self.pool.begin().await?;
         let r = sqlx::query(
-            "UPDATE users SET plan_id = NULL, plan_expire_at = NULL, all_device_groups = 0 \
-             WHERE id = ? AND admin = 0",
+            "UPDATE users SET plan_id = NULL, plan_expire_at = NULL, all_device_groups = FALSE \
+             WHERE id = $1 AND admin = FALSE",
         )
         .bind(user_id)
         .execute(&mut *tx)
         .await?;
         let affected = r.rows_affected();
         if affected == 0 {
-            // Missing user or an admin target — nothing to clear.
             let _ = tx.rollback().await;
             return Ok(0);
         }
-        // Drop explicit group grants, then system-pause every active rule
-        // (auto_paused=1) since the user now has no authorized groups.
-        sqlx::query("DELETE FROM user_device_groups WHERE user_id = ?")
+        sqlx::query("DELETE FROM user_device_groups WHERE user_id = $1")
             .bind(user_id)
             .execute(&mut *tx)
             .await?;
         sqlx::query(
-            "UPDATE forward_rules SET paused = 1, auto_paused = 1 WHERE uid = ? AND paused = 0",
+            "UPDATE forward_rules SET paused = TRUE, auto_paused = TRUE \
+             WHERE uid = $1 AND paused = FALSE",
         )
         .bind(user_id)
         .execute(&mut *tx)
@@ -291,7 +307,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn increment_user_traffic(&self, id: i64, delta: i64) -> Result<(), DbError> {
-        sqlx::query("UPDATE users SET traffic_used = traffic_used + ? WHERE id = ?")
+        sqlx::query("UPDATE users SET traffic_used = traffic_used + $1 WHERE id = $2")
             .bind(delta)
             .bind(id)
             .execute(&self.pool)
@@ -300,12 +316,12 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn reset_traffic(&self, id: i64) -> Result<(), DbError> {
-        let mut tx = self.begin_write().await?;
-        sqlx::query("UPDATE users SET traffic_used = 0 WHERE id = ?")
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("UPDATE users SET traffic_used = 0 WHERE id = $1")
             .bind(id)
             .execute(&mut *tx)
             .await?;
-        sqlx::query("UPDATE forward_rules SET traffic_used = 0 WHERE uid = ?")
+        sqlx::query("UPDATE forward_rules SET traffic_used = 0 WHERE uid = $1")
             .bind(id)
             .execute(&mut *tx)
             .await?;
@@ -314,7 +330,7 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn delete_non_admin(&self, id: i64) -> Result<u64, DbError> {
-        let result = sqlx::query("DELETE FROM users WHERE id = ? AND admin = 0")
+        let result = sqlx::query("DELETE FROM users WHERE id = $1 AND admin = FALSE")
             .bind(id)
             .execute(&self.pool)
             .await?;
@@ -322,36 +338,28 @@ impl UserRepository for MySqlRepository {
     }
 
     async fn delete_user_cascade(&self, uid: i64) -> Result<u64, DbError> {
-        // v0.4.4: one atomic transaction. Previously this deleted rules + groups
-        // in two un-transacted statements, MISSED tunnel_profiles entirely, and
-        // left the user row to a separate delete_non_admin call — so a user with
-        // a custom tunnel profile would have rules+groups permanently deleted and
-        // THEN fail the FK check on the user delete, leaving the account half-gone.
-        //
-        // Delete order respects the FK graph: forward_rules references both
-        // tunnel_profiles and device_groups, so it goes first; tunnel_profiles and
-        // device_groups both reference users, so the user row goes last. The user
-        // delete carries the `admin = 0` guard, and if it affects 0 rows (admin or
-        // already gone) we roll the whole thing back by returning before commit.
-        let mut tx = self.begin_write().await?;
-        sqlx::query("DELETE FROM forward_rules WHERE uid = ?")
+        // v0.4.4: one atomic transaction (was two un-transacted DELETEs that
+        // missed tunnel_profiles). FK order: forward_rules → tunnel_profiles →
+        // device_groups → users. The user delete carries the admin guard; if it
+        // affects 0 rows (admin or gone) we roll back so the cascade is undone.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM forward_rules WHERE uid = $1")
             .bind(uid)
             .execute(&mut *tx)
             .await?;
-        sqlx::query("DELETE FROM tunnel_profiles WHERE uid = ?")
+        sqlx::query("DELETE FROM tunnel_profiles WHERE uid = $1")
             .bind(uid)
             .execute(&mut *tx)
             .await?;
-        sqlx::query("DELETE FROM device_groups WHERE uid = ?")
+        sqlx::query("DELETE FROM device_groups WHERE uid = $1")
             .bind(uid)
             .execute(&mut *tx)
             .await?;
-        let result = sqlx::query("DELETE FROM users WHERE id = ? AND admin = 0")
+        let result = sqlx::query("DELETE FROM users WHERE id = $1 AND admin = FALSE")
             .bind(uid)
             .execute(&mut *tx)
             .await?;
         if result.rows_affected() == 0 {
-            // Admin or non-existent: roll back so the cascade above is undone.
             tx.rollback().await?;
             return Ok(0);
         }
@@ -382,7 +390,7 @@ impl UserRepository for MySqlRepository {
         // placeholder (first boot); once the admin sets a real password the LIKE
         // guard never matches again, so we never re-flag a real account.
         sqlx::query(
-            "UPDATE users SET password = ?, must_change_password = 1 \
+            "UPDATE users SET password = $1, must_change_password = TRUE \
              WHERE id = 1 AND password LIKE '$2b$12$PLACEHOLDER%'",
         )
         .bind(hash)

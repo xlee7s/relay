@@ -1,4 +1,4 @@
-use super::MySqlRepository;
+use super::PgRepository;
 use crate::db::error::DbError;
 use crate::db::repo::*;
 use async_trait::async_trait;
@@ -7,7 +7,7 @@ use relay_shared::models::Statistic;
 // ── StatisticsRepository ──
 
 #[async_trait]
-impl StatisticsRepository for MySqlRepository {
+impl StatisticsRepository for PgRepository {
     async fn query_stats(
         &self,
         stat_type: Option<&str>,
@@ -15,11 +15,11 @@ impl StatisticsRepository for MySqlRepository {
         from: Option<&str>,
         to: Option<&str>,
     ) -> Result<Vec<Statistic>, DbError> {
-        // COALESCE treats a NULL filter as "match anything" — the canonical
-        // optional-filter pattern in SQL. '2000-01-01' / '2099-12-31' are
-        // sentinels wide enough to cover any realistic timestamp string.
+        // Same COALESCE-optional-filter pattern as SQLite. PG's COALESCE works
+        // identically. The sentinel timestamps are wide enough for any real
+        // 'YYYY-MM-DD HH:MM:SS' value.
         let stats: Vec<Statistic> = sqlx::query_as(
-            "SELECT * FROM statistics WHERE stat_type = COALESCE(?, stat_type) AND stat_key = COALESCE(?, stat_key) AND time >= COALESCE(?, '2000-01-01') AND time <= COALESCE(?, '2099-12-31') ORDER BY time",
+            "SELECT * FROM statistics WHERE stat_type = COALESCE($1, stat_type) AND stat_key = COALESCE($2, stat_key) AND time >= COALESCE($3, '2000-01-01') AND time <= COALESCE($4, '2099-12-31') ORDER BY time",
         )
         .bind(stat_type)
         .bind(stat_key)

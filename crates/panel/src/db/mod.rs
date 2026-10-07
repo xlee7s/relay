@@ -1,11 +1,9 @@
 pub mod error;
 pub mod init;
-pub mod mysql_repo;
-pub mod mysql_schema;
+pub mod pg_repo;
+pub mod pg_schema;
 pub mod repo;
-#[cfg(test)]
 pub mod schema;
-#[cfg(test)]
 pub mod sqlite_repo;
 
 // Re-export the aggregate trait so callers can write `crate::db::Repository`

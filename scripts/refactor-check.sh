@@ -69,6 +69,7 @@ cd "$ROOT_DIR"
 run_step cargo fmt --check
 run_step cargo clippy --workspace --all-targets -- -D warnings
 run_step cargo test --workspace
+run_step bash scripts/check-repo-test-parity.sh
 
 if [[ "$frontend_mode" != "skip" ]]; then
   if [[ ! -d "$FRONTEND_DIR" ]]; then

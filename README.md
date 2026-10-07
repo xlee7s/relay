@@ -1,53 +1,76 @@
+<p align="center">
+  <img src="frontend/public/favicon.svg" width="80" height="80" alt="RelayPanel Logo" />
+</p>
+
+<h1 align="center">RelayPanel</h1>
+
+<p align="center">
+  ⚡ 自托管 TCP/UDP 端口转发管理面板 ⚡
+</p>
+
+<p align="center">
+  <a href="https://github.com/xlee7s/relay/releases/latest"><img src="https://img.shields.io/github/v/release/xlee7s/relay?style=flat-square&label=Release&color=blue" alt="Release" /></a>
+  <a href="https://github.com/xlee7s/relay/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/xlee7s/relay/ci.yml?style=flat-square&label=CI" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/xlee7s/relay?style=flat-square&label=License&color=blue" alt="License" /></a>
+</p>
+
+<p align="center">
+  用 Rust 编写，通过 Web UI 管理转发规则、设备分组、流量配额和实时节点状态。<br/>
+  轻量：Panel + Node。部署方式：Docker Compose。数据库：SQLite。
+</p>
+
+---
+
 ## ✨ 功能亮点
 
 - 🔀 **转发规则** — TCP/UDP 多目标转发，故障转移 / 轮询负载均衡，目标熔断自动恢复，域名目标跟随 DDNS
 - 🚦 **连接治理** — 每条规则可设并发连接数上限；支持单条 / 批量 / 定时重启，重启会掐断旧连接并重建监听
-- 🛒 **套餐与计费** — 用户自助买套餐、卡密充值余额；按「(上行 + 下行) × 线路倍率」扣额度；一人一个当前套餐，续费叠加、换套餐整体替换
-- 📊 **流量可视** — 按规则 / 用户计量，近 1 / 7 / 30 天趋势图按线路分色堆叠，看得出是哪条线路在吃额度
-- 🖥️ **节点管理** — 实时 CPU / 内存 / 连接数、地区识别、掉线推送 Telegram 或邮件、面板一键升级节点（免 SSH）
-- 👤 **用户与分组** — 管理任意用户的规则与套餐、重置流量密码、封禁；设备分组可隐藏，节点卸载不影响规则
-- 🗄️ **部署友好** — 内置 MySQL 5.7 Compose 服务；面板与节点均支持 amd64 / arm64
-- 🔒 **安全** — 首次登录强制改密码，节点 Bearer Token 鉴权
+- 🛒 **套餐与计费** — 用户自助买套餐、卡密充值余额；按「(上行 + 下行) × 线路倍率」扣额度
+- 📊 **流量可视** — 按规则 / 用户计量，近 1 / 7 / 30 天趋势图按线路分色堆叠
+- 🖥️ **节点管理** — 实时 CPU / 内存 / 连接数、地区识别、掉线通知、面板一键升级节点
+- 👤 **用户与分组** — 管理用户、规则和套餐；支持设备分组和节点状态管理
+- 🗄️ **部署友好** — SQLite 零配置持久化；面板与节点均支持 amd64 / arm64
+- 🔒 **安全** — 首次登录强制修改密码，节点 Bearer Token 鉴权
+
+完整功能说明与使用文档：**[项目文档](docs/DEPLOYMENT.md)**
 
 ---
 
 ## 🚀 快速开始
 
-**一条命令部署：**
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xlee7s/relay/master/install.sh | bash
 ```
 
-> 🔑 **默认账号 `admin` / `admin123`，首次登录强制修改密码。**
+> 🔑 默认账号为 `admin` / `admin123`，首次登录后必须修改密码。
 
 ---
 
 ## 🏗️ 架构
 
-```
+```text
   浏览器 (React UI)          relay-node (Tokio TCP/UDP)
        │                          ▲
        ▼                          │
    relay-panel  ◄─── WebSocket 配置推送 + HTTP 状态上报
    (Axum API)                     │
        │                          ▼
-   MySQL 5.7                转发流量到真实目标
+     SQLite                 转发流量到真实目标
 ```
 
 ---
 
 ## 🔄 更新
 
-**面板**：有新版本时，在仪表盘点「马上更新」即可，无需 SSH。更新前会通过 `mysqldump --single-transaction` 自动备份到 `backups/`（保留最近 5 份）。更新期间面板约半分钟打不开，节点转发不受影响。
+**面板**：有新版本时，在仪表盘点击「马上更新」即可。更新前会自动备份 SQLite 数据库到 `backups/`，保留最近 5 份。
 
-一键更新依赖服务器上的更新服务，它会在手动更新时装好。所以 **v1.2.10 及更早版本需要先手动更新一次**，之后就能一键更新（更新前请备份 `.env` 和数据库）：
+旧版本首次启用一键更新时，可手动执行：
 
 ```bash
 cd /opt/relay && git pull --quiet && ./deploy.sh
 ```
 
-**节点**：面板 → 节点状态 → 点「升级」，无需 SSH。仅 systemd 节点可用（Docker 节点改为更新镜像）。node-v1.2.5 起，节点重启前会停止接新连接、补报已计数的流量，并给进行中的连接最多 5 秒收尾；长连接（隧道、VPN）仍会断开。详见 [转发节点文档](docs/NODE.zh-CN.md#更新)。
+**节点**：面板 → 节点状态 → 点击「升级」。仅 systemd 节点支持面板一键升级。
 
 ---
 
@@ -55,7 +78,7 @@ cd /opt/relay && git pull --quiet && ./deploy.sh
 
 ### 卸载面板端
 
-以下命令会停止并删除面板、MySQL 和可选的节点/Caddy 容器，同时移除面板一键更新服务：
+卸载前如需保留数据，请先备份 `/opt/relay/data/`。以下命令会删除面板容器、SQLite 数据和程序目录：
 
 ```bash
 cd /opt/relay
@@ -67,17 +90,9 @@ cd /
 rm -rf /opt/relay
 ```
 
-上面的命令默认保留 Docker 中的 MySQL 数据卷。确认不再需要数据库数据时，再执行：
-
-```bash
-docker volume rm relay_mysql_data
-```
-
-> ⚠️ 删除 `relay_mysql_data` 后，用户、规则、套餐和所有面板数据都无法恢复，请先备份数据库。
+> ⚠️ 删除 `/opt/relay/data/` 后，用户、规则、套餐和所有面板数据都无法恢复。
 
 ### 卸载节点端
-
-默认服务名为 `relay-node`，卸载命令如下：
 
 ```bash
 systemctl disable --now relay-node
@@ -86,4 +101,32 @@ systemctl daemon-reload
 rm -rf /opt/relay-node
 ```
 
-如果安装节点时通过 `--service-name` 指定了其他名称，请将命令中的 `relay-node` 替换为对应名称。
+如果安装节点时使用 `--service-name` 指定了其他名称，请将命令中的 `relay-node` 替换为对应名称。
+
+---
+
+## 🛠️ 本地开发
+
+```bash
+cargo build && cargo run -p relay-panel &
+cd frontend && npm install && npm run dev
+python3 tests/e2e_test.py
+```
+
+---
+
+## 📦 技术栈
+
+Rust · Axum · Tokio · sqlx · SQLite · JWT · React 19 · TypeScript · Ant Design · Docker Compose
+
+---
+
+## 📄 许可证与免责声明
+
+Apache-2.0 —— 详见 [LICENSE](LICENSE)。
+
+本仓库基于 [MoeShinX/relay-panel](https://github.com/MoeShinX/relay-panel) 二次开发，原项目版权及 Apache-2.0 许可声明予以保留。
+
+本项目仅供个人学习与研究使用，请在合法合规前提下使用，风险自负。
+
+完整 **[免责声明](docs/DISCLAIMER.md)**

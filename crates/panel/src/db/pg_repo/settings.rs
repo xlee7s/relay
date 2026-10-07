@@ -1,4 +1,4 @@
-use super::MySqlRepository;
+use super::PgRepository;
 use crate::db::error::DbError;
 use crate::db::repo::*;
 use async_trait::async_trait;
@@ -7,7 +7,7 @@ use relay_shared::models::Plan;
 // ── PlanRepository ──
 
 #[async_trait]
-impl PlanRepository for MySqlRepository {
+impl PlanRepository for PgRepository {
     async fn list_plans(&self) -> Result<Vec<Plan>, DbError> {
         let plans: Vec<Plan> = sqlx::query_as("SELECT * FROM plans ORDER BY id")
             .fetch_all(&self.pool)
@@ -16,14 +16,15 @@ impl PlanRepository for MySqlRepository {
     }
 
     async fn list_visible_plans(&self) -> Result<Vec<Plan>, DbError> {
-        let plans: Vec<Plan> = sqlx::query_as("SELECT * FROM plans WHERE hidden = 0 ORDER BY id")
-            .fetch_all(&self.pool)
-            .await?;
+        let plans: Vec<Plan> =
+            sqlx::query_as("SELECT * FROM plans WHERE hidden = FALSE ORDER BY id")
+                .fetch_all(&self.pool)
+                .await?;
         Ok(plans)
     }
 
     async fn find_plan_name_by_id(&self, id: i64) -> Result<Option<String>, DbError> {
-        let row: Option<(String,)> = sqlx::query_as("SELECT name FROM plans WHERE id = ?")
+        let row: Option<(String,)> = sqlx::query_as("SELECT name FROM plans WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
@@ -31,7 +32,7 @@ impl PlanRepository for MySqlRepository {
     }
 
     async fn find_plan_by_id(&self, id: i64) -> Result<Option<Plan>, DbError> {
-        let plan: Option<Plan> = sqlx::query_as("SELECT * FROM plans WHERE id = ?")
+        let plan: Option<Plan> = sqlx::query_as("SELECT * FROM plans WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
@@ -52,12 +53,11 @@ impl PlanRepository for MySqlRepository {
         description: &str,
         grant_all_groups: bool,
     ) -> Result<i64, DbError> {
-        // INSERT-then-last_insert_rowid (SQLite). speed_limit/ip_limit keep
-        // their defaults (placeholders, never enforced) — not exposed here.
-        let result = sqlx::query(
+        // RETURNING id (PG); speed_limit/ip_limit keep their defaults.
+        let row: (i64,) = sqlx::query_as(
             "INSERT INTO plans \
              (name, max_rules, traffic, price, plan_type, duration_days, hidden, reset_traffic, description, grant_all_groups) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
         )
         .bind(name)
         .bind(max_rules)
@@ -69,9 +69,9 @@ impl PlanRepository for MySqlRepository {
         .bind(reset_traffic)
         .bind(description)
         .bind(grant_all_groups)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(result.last_insert_id() as i64)
+        Ok(row.0)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -89,11 +89,11 @@ impl PlanRepository for MySqlRepository {
         grant_all_groups: bool,
         device_group_ids: &[i64],
     ) -> Result<i64, DbError> {
-        let mut tx = self.begin_write().await?;
-        let result = sqlx::query(
+        let mut tx = self.pool.begin().await?;
+        let row: (i64,) = sqlx::query_as(
             "INSERT INTO plans \
              (name, max_rules, traffic, price, plan_type, duration_days, hidden, reset_traffic, description, grant_all_groups) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
         )
         .bind(name)
         .bind(max_rules)
@@ -105,13 +105,13 @@ impl PlanRepository for MySqlRepository {
         .bind(reset_traffic)
         .bind(description)
         .bind(grant_all_groups)
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await?;
-        let id = result.last_insert_id() as i64;
+        let id = row.0;
         for dg in device_group_ids {
             sqlx::query(
-                "INSERT IGNORE INTO plan_device_groups (plan_id, device_group_id) \
-                 VALUES (?, ?)",
+                "INSERT INTO plan_device_groups (plan_id, device_group_id) \
+                 VALUES ($1, $2) ON CONFLICT DO NOTHING",
             )
             .bind(id)
             .bind(dg)
@@ -139,41 +139,56 @@ impl PlanRepository for MySqlRepository {
     ) -> Result<u64, DbError> {
         let mut sets: Vec<&str> = Vec::new();
         if name.is_some() {
-            sets.push("name = ?");
+            sets.push("name = ");
         }
         if max_rules.is_some() {
-            sets.push("max_rules = ?");
+            sets.push("max_rules = ");
         }
         if traffic.is_some() {
-            sets.push("traffic = ?");
+            sets.push("traffic = ");
         }
         if price.is_some() {
-            sets.push("price = ?");
+            sets.push("price = ");
         }
         if plan_type.is_some() {
-            sets.push("plan_type = ?");
+            sets.push("plan_type = ");
         }
         if duration_days.is_some() {
-            sets.push("duration_days = ?");
+            sets.push("duration_days = ");
         }
         if hidden.is_some() {
-            sets.push("hidden = ?");
+            sets.push("hidden = ");
         }
         if reset_traffic.is_some() {
-            sets.push("reset_traffic = ?");
+            sets.push("reset_traffic = ");
         }
         if description.is_some() {
-            sets.push("description = ?");
+            sets.push("description = ");
         }
         if grant_all_groups.is_some() {
-            sets.push("grant_all_groups = ?");
+            sets.push("grant_all_groups = ");
         }
 
         if sets.is_empty() {
             return Ok(0);
         }
 
-        let sql = format!("UPDATE plans SET {} WHERE id = ?", sets.join(", "));
+        let mut ph = 1;
+        let sets_with_ph: Vec<String> = sets
+            .iter()
+            .map(|s| {
+                let p = format!("{s}${ph}");
+                ph += 1;
+                p
+            })
+            .collect();
+        let id_ph = ph;
+        let sql = format!(
+            "UPDATE plans SET {} WHERE id = ${}",
+            sets_with_ph.join(", "),
+            id_ph
+        );
+
         let mut q = sqlx::query(&sql);
         if let Some(v) = name {
             q = q.bind(v);
@@ -212,7 +227,7 @@ impl PlanRepository for MySqlRepository {
     }
 
     async fn delete_plan(&self, id: i64) -> Result<u64, DbError> {
-        let result = sqlx::query("DELETE FROM plans WHERE id = ?")
+        let result = sqlx::query("DELETE FROM plans WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await?;
@@ -220,20 +235,17 @@ impl PlanRepository for MySqlRepository {
     }
 
     async fn count_users_on_plan(&self, plan_id: i64) -> Result<i64, DbError> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE plan_id = ?")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE plan_id = $1")
             .bind(plan_id)
             .fetch_one(&self.pool)
             .await?;
         Ok(row.0)
     }
 
-    // v1.0.8: atomic plan purchase. v1.2.12: the transaction takes SQLite's
-    // write lock at BEGIN (begin_write), so a concurrent purchase waits for
-    // this one to commit and then reads the updated balance — never a
-    // double-deduction, and no longer a spurious SQLITE_BUSY 500 either (the
-    // old deferred BEGIN failed outright when another write landed between
-    // this read and its first write). (PG uses an explicit SELECT ... FOR
-    // UPDATE row lock instead; see the PG impl.)
+    // v1.0.8: atomic plan purchase. PG defaults to READ COMMITTED, so the
+    // SELECT ... FOR UPDATE row lock is what prevents 防双花: a concurrent tx
+    // trying to lock the same user row blocks until this commits, then reads
+    // the post-deduction balance. The lock + the UPDATE run on the same tx.
     async fn buy_plan(
         &self,
         user_id: i64,
@@ -248,31 +260,22 @@ impl PlanRepository for MySqlRepository {
         device_group_ids: &[i64],
         // v1.0.8: the NEW authorized group set AFTER purchase. Used inside the
         // transaction to pause rules outside this set (replacement semantics).
-        // Computed by the caller: all inbound groups if grant_all_groups, else
-        // device_group_ids (the plan's grants).
         new_authorized_group_ids: &[i64],
     ) -> Result<(), BuyPlanError> {
-        let mut tx = self.begin_write().await?;
+        let mut tx = self.pool.begin().await?;
 
-        // Read the user's current balance (canonical TEXT) + expiry + plan_id.
-        // plan_id decides renew-vs-switch below.
-        let row: Option<(String, Option<String>, Option<i64>)> =
-            sqlx::query_as(
-                "SELECT balance, plan_expire_at, plan_id FROM users WHERE id = ? FOR UPDATE",
-            )
-                .bind(user_id)
-                .fetch_optional(&mut *tx)
-                .await?;
+        // FOR UPDATE locks the user row for the tx's duration.
+        let row: Option<(String, Option<String>, Option<i64>)> = sqlx::query_as(
+            "SELECT balance, plan_expire_at, plan_id FROM users WHERE id = $1 FOR UPDATE",
+        )
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
         let Some((balance_str, current_expire, current_plan_id)) = row else {
             let _ = tx.rollback().await;
-            // A missing user mid-purchase is a DB integrity issue, not a
-            // balance issue — surface as a 500.
             return Err(BuyPlanError::Database(DbError::NotFound));
         };
 
-        // Decimal math in integer cents (no floats). balance_to_cents returns
-        // None on a non-canonical string — treat that as a data-integrity fault
-        // and refuse the purchase (500) rather than mis-billing.
         let balance_cents =
             relay_shared::money::balance_to_cents(&balance_str).ok_or_else(|| {
                 tracing::error!(
@@ -288,35 +291,36 @@ impl PlanRepository for MySqlRepository {
         }
         let new_balance = relay_shared::money::cents_to_balance(balance_cents - price_cents);
 
-        // Renew (buying the SAME plan again) vs switch (a different plan, or the
-        // user had none). These diverge on traffic + expiry:
-        //   - switch: quota REPLACES the old (traffic_limit = new, traffic_used
-        //     = 0) and the expiry is recomputed from now — the new plan starts
-        //     fresh, old usage/time does NOT carry over.
-        //   - renew:  quota STACKS (traffic_limit += new, traffic_used kept) and
-        //     the expiry extends from max(now, current) — 加流量/延期.
-        // A missing current plan (None) is treated as a switch (fresh start).
+        // Renew (same plan) vs switch (different plan, or none). See the sqlite
+        // impl for the full rationale:
+        //   - switch: traffic_limit = new, traffic_used = 0, expiry = now + days
+        //             (fresh start, no carry-over).
+        //   - renew:  traffic_limit += new, traffic_used kept, expiry stacks
+        //             from max(now, current) + days.
         let is_switch = current_plan_id != Some(plan_id);
 
-        // Compute the new expiry. duration_days=0 → NULL (no expiry). Stored as
+        // Compute the new expiry. duration_days=0 → NULL. Canonical TEXT
         // 'YYYY-MM-DD HH:MM:SS' UTC (lexically comparable, same as created_at).
-        // MySQL performs the calendar arithmetic and returns the same UTC text
-        // representation used throughout the application.
         let new_expire: Option<String> = if duration_days <= 0 {
             None
         } else if is_switch {
-            // Switch: fresh expiry = now + duration_days (no carry-over).
+            // Switch: fresh expiry = now + duration_days.
             let row: (String,) = sqlx::query_as(
-                "SELECT DATE_FORMAT(DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? DAY), '%Y-%m-%d %H:%i:%s')",
+                "SELECT to_char(now() AT TIME ZONE 'UTC' + make_interval(days => $1), \
+                   'YYYY-MM-DD HH24:MI:SS')",
             )
-                .bind(duration_days)
-                .fetch_one(&mut *tx)
-                .await?;
+            .bind(duration_days)
+            .fetch_one(&mut *tx)
+            .await?;
             Some(row.0)
         } else {
             // Renew: base = max(now, current_expire) so remaining time stacks.
             let row: (String,) = sqlx::query_as(
-                "SELECT DATE_FORMAT(DATE_ADD(GREATEST(UTC_TIMESTAMP(), COALESCE(STR_TO_DATE(?, '%Y-%m-%d %H:%i:%s'), UTC_TIMESTAMP())), INTERVAL ? DAY), '%Y-%m-%d %H:%i:%s')",
+                "SELECT to_char( \
+                   GREATEST(now() AT TIME ZONE 'UTC', \
+                            COALESCE($1::timestamptz, now() AT TIME ZONE 'UTC')) \
+                   + make_interval(days => $2), \
+                   'YYYY-MM-DD HH24:MI:SS')",
             )
             .bind(&current_expire)
             .bind(duration_days)
@@ -325,14 +329,13 @@ impl PlanRepository for MySqlRepository {
             Some(row.0)
         };
 
-        // Apply the user update per the renew/switch split above.
         if is_switch {
             // Switch: traffic_limit = new quota, traffic_used reset to 0.
             sqlx::query(
                 "UPDATE users SET \
-                 balance = ?, traffic_limit = ?, traffic_used = 0, max_rules = ?, \
-                 plan_id = ?, plan_expire_at = ? \
-                 WHERE id = ?",
+                 balance = $1, traffic_limit = $2, traffic_used = 0, max_rules = $3, \
+                 plan_id = $4, plan_expire_at = $5 \
+                 WHERE id = $6",
             )
             .bind(&new_balance)
             .bind(traffic_to_add)
@@ -346,9 +349,9 @@ impl PlanRepository for MySqlRepository {
             // Renew + the plan's reset_traffic flag: stack quota, zero usage.
             sqlx::query(
                 "UPDATE users SET \
-                 balance = ?, traffic_limit = traffic_limit + ?, traffic_used = 0, \
-                 max_rules = ?, plan_id = ?, plan_expire_at = ? \
-                 WHERE id = ?",
+                 balance = $1, traffic_limit = traffic_limit + $2, traffic_used = 0, \
+                 max_rules = $3, plan_id = $4, plan_expire_at = $5 \
+                 WHERE id = $6",
             )
             .bind(&new_balance)
             .bind(traffic_to_add)
@@ -362,9 +365,9 @@ impl PlanRepository for MySqlRepository {
             // Renew: stack quota, keep usage.
             sqlx::query(
                 "UPDATE users SET \
-                 balance = ?, traffic_limit = traffic_limit + ?, max_rules = ?, \
-                 plan_id = ?, plan_expire_at = ? \
-                 WHERE id = ?",
+                 balance = $1, traffic_limit = traffic_limit + $2, max_rules = $3, \
+                 plan_id = $4, plan_expire_at = $5 \
+                 WHERE id = $6",
             )
             .bind(&new_balance)
             .bind(traffic_to_add)
@@ -376,51 +379,52 @@ impl PlanRepository for MySqlRepository {
             .await?;
         }
 
-        // Insert the order row (snapshots plan_name + the canonical price).
         let price_str = relay_shared::money::cents_to_balance(price_cents);
-        sqlx::query("INSERT INTO orders (user_id, plan_id, plan_name, price) VALUES (?, ?, ?, ?)")
+        sqlx::query(
+            "INSERT INTO orders (user_id, plan_id, plan_name, price) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(user_id)
+        .bind(plan_id)
+        .bind(plan_name)
+        .bind(&price_str)
+        .execute(&mut *tx)
+        .await?;
+
+        // v1.0.8: grant device-group authorization in the SAME tx (mirrors the
+        // SQLite impl). Purchase REPLACES the user's authorization — BOTH
+        // dimensions are reset so exactly the new plan's grant remains:
+        //   - grant_all_groups → set all_device_groups=TRUE AND clear explicit
+        //     user_device_groups rows.
+        //   - else → clear all_device_groups=FALSE AND replace user_device_groups.
+        //     Resetting the flag is the fix for the grant-all → per-group
+        //     downgrade case (without it the user stayed unrestricted).
+        if grant_all_groups {
+            sqlx::query(
+                "UPDATE users SET all_device_groups = TRUE WHERE id = $1 AND admin = FALSE",
+            )
             .bind(user_id)
-            .bind(plan_id)
-            .bind(plan_name)
-            .bind(&price_str)
             .execute(&mut *tx)
             .await?;
-
-        // v1.0.8: grant device-group authorization in the SAME tx. Purchase
-        // REPLACES the user's authorization — BOTH dimensions are reset so the
-        // user is left with EXACTLY the new plan's grant, nothing lingering:
-        //   - grant_all_groups → set all_device_groups=1 AND clear the explicit
-        //     user_device_groups rows (redundant under the flag; clearing them
-        //     avoids stale grants resurfacing if the user later downgrades).
-        //   - else → clear all_device_groups=0 AND replace user_device_groups
-        //     with the plan's set. Resetting the flag is the fix for the
-        //     grant-all → per-group downgrade case: without it the user kept
-        //     all_device_groups=1 and stayed effectively unrestricted.
-        // The caller's new_authorized_group_ids drives the rule-pause below.
-        if grant_all_groups {
-            sqlx::query("UPDATE users SET all_device_groups = 1 WHERE id = ? AND admin = 0")
-                .bind(user_id)
-                .execute(&mut *tx)
-                .await?;
-            sqlx::query("DELETE FROM user_device_groups WHERE user_id = ?")
+            sqlx::query("DELETE FROM user_device_groups WHERE user_id = $1")
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await?;
         } else {
             // REPLACE semantics: reset the all-groups flag, clear old explicit
             // assignments, then insert the plan's.
-            sqlx::query("UPDATE users SET all_device_groups = 0 WHERE id = ? AND admin = 0")
-                .bind(user_id)
-                .execute(&mut *tx)
-                .await?;
-            sqlx::query("DELETE FROM user_device_groups WHERE user_id = ?")
+            sqlx::query(
+                "UPDATE users SET all_device_groups = FALSE WHERE id = $1 AND admin = FALSE",
+            )
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("DELETE FROM user_device_groups WHERE user_id = $1")
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await?;
             for dg_id in device_group_ids {
                 sqlx::query(
-                    "INSERT INTO user_device_groups (user_id, device_group_id) \
-                     VALUES (?, ?)",
+                    "INSERT INTO user_device_groups (user_id, device_group_id) VALUES ($1, $2)",
                 )
                 .bind(user_id)
                 .bind(dg_id)
@@ -429,30 +433,29 @@ impl PlanRepository for MySqlRepository {
             }
         }
 
-        // Pause rules outside the new authorization. This is the key change from
-        // the old append-only behavior: a new purchase can revoke access to
-        // groups the user previously had, and those rules stop forwarding.
-        // When grant_all_groups=true, new_authorized = all inbound groups, so
-        // no rules are paused (the user still has full access).
+        // Pause rules outside the new authorization (same logic as SQLite).
         // Inline the pause logic inside the transaction (using &mut *tx) to
         // avoid acquiring a separate pool connection while the transaction is
         // still open — that would risk a pool-exhaustion deadlock.
-        // v1.0.8: auto_paused=1 marks these as SYSTEM pauses (see the resume
+        // v1.0.8: auto_paused=TRUE marks these as SYSTEM pauses (see the resume
         // step below and the column doc on forward_rules.auto_paused).
         let n = if new_authorized_group_ids.is_empty() {
             let r = sqlx::query(
-                "UPDATE forward_rules SET paused = 1, auto_paused = 1 \
-                 WHERE uid = ? AND paused = 0",
+                "UPDATE forward_rules SET paused = TRUE, auto_paused = TRUE \
+                 WHERE uid = $1 AND paused = FALSE",
             )
             .bind(user_id)
             .execute(&mut *tx)
             .await?;
             r.rows_affected()
         } else {
-            let placeholders = vec!["?"; new_authorized_group_ids.len()].join(", ");
+            let placeholders = (1..=new_authorized_group_ids.len())
+                .map(|i| format!("${}", i + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
             let sql = format!(
-                "UPDATE forward_rules SET paused = 1, auto_paused = 1 \
-                 WHERE uid = ? AND paused = 0 AND device_group_in NOT IN ({})",
+                "UPDATE forward_rules SET paused = TRUE, auto_paused = TRUE \
+                 WHERE uid = $1 AND paused = FALSE AND device_group_in NOT IN ({})",
                 placeholders
             );
             let mut q = sqlx::query(&sql).bind(user_id);
@@ -470,16 +473,19 @@ impl PlanRepository for MySqlRepository {
         }
 
         // v1.0.8: symmetric auto-resume — a rule this system previously paused
-        // (auto_paused=1) whose group is back in the new authorized set gets
-        // un-paused here. A rule the user paused THEMSELVES (auto_paused=0,
+        // (auto_paused=TRUE) whose group is back in the new authorized set gets
+        // un-paused here. A rule the user paused THEMSELVES (auto_paused=FALSE,
         // e.g. via the on/off switch) is deliberately left alone even if its
         // group is authorized again — buying a plan must never silently revive
         // a rule the user turned off on purpose.
         if !new_authorized_group_ids.is_empty() {
-            let placeholders = vec!["?"; new_authorized_group_ids.len()].join(", ");
+            let placeholders = (1..=new_authorized_group_ids.len())
+                .map(|i| format!("${}", i + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
             let sql = format!(
-                "UPDATE forward_rules SET paused = 0, auto_paused = 0 \
-                 WHERE uid = ? AND paused = 1 AND auto_paused = 1 \
+                "UPDATE forward_rules SET paused = FALSE, auto_paused = FALSE \
+                 WHERE uid = $1 AND paused = TRUE AND auto_paused = TRUE \
                  AND device_group_in IN ({})",
                 placeholders
             );
@@ -496,27 +502,26 @@ impl PlanRepository for MySqlRepository {
             }
         }
 
-        // A lower rule limit must apply to rules that already exist, not only
-        // future creates. Keep the oldest active rules and pause the newest
-        // excess rules last, after any authorization-driven auto-resume above.
-        // max_rules=0 means unlimited, matching insert_quota_guarded.
+        // Reconcile existing active rules after group authorization has been
+        // finalized. A positive max_rules keeps the oldest active rules and
+        // pauses the newest excess rules; zero remains the unlimited sentinel.
         if plan_max_rules > 0 {
             let active_count: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM forward_rules WHERE uid = ? AND paused = 0",
+                "SELECT COUNT(*) FROM forward_rules WHERE uid = $1 AND paused = FALSE",
             )
             .bind(user_id)
             .fetch_one(&mut *tx)
             .await?;
             let excess = active_count.saturating_sub(i64::from(plan_max_rules));
             if excess > 0 {
-                // auto_paused stays 0 deliberately: these ports need an
-                // explicit user resume after a later upgrade.
+                // Keep auto_paused=FALSE so an upgrade never silently reopens
+                // a port that this limit reconciliation paused.
                 let paused = sqlx::query(
-                    "UPDATE forward_rules SET paused = 1, auto_paused = 0 \
+                    "UPDATE forward_rules SET paused = TRUE, auto_paused = FALSE \
                      WHERE id IN ( \
                          SELECT id FROM forward_rules \
-                         WHERE uid = ? AND paused = 0 \
-                         ORDER BY id DESC LIMIT ? \
+                         WHERE uid = $1 AND paused = FALSE \
+                         ORDER BY id DESC LIMIT $2 \
                      )",
                 )
                 .bind(user_id)
@@ -541,7 +546,7 @@ impl PlanRepository for MySqlRepository {
     async fn list_plan_device_groups(&self, plan_id: i64) -> Result<Vec<i64>, DbError> {
         let rows: Vec<(i64,)> = sqlx::query_as(
             "SELECT device_group_id FROM plan_device_groups \
-             WHERE plan_id = ? ORDER BY device_group_id",
+             WHERE plan_id = $1 ORDER BY device_group_id",
         )
         .bind(plan_id)
         .fetch_all(&self.pool)
@@ -554,16 +559,15 @@ impl PlanRepository for MySqlRepository {
         plan_id: i64,
         device_group_ids: &[i64],
     ) -> Result<(), DbError> {
-        // REPLACE the grant set (delete-then-insert, deduped via the PK).
-        let mut tx = self.begin_write().await?;
-        sqlx::query("DELETE FROM plan_device_groups WHERE plan_id = ?")
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM plan_device_groups WHERE plan_id = $1")
             .bind(plan_id)
             .execute(&mut *tx)
             .await?;
         for dg_id in device_group_ids {
             sqlx::query(
-                "INSERT IGNORE INTO plan_device_groups (plan_id, device_group_id) \
-                 VALUES (?, ?)",
+                "INSERT INTO plan_device_groups (plan_id, device_group_id) \
+                 VALUES ($1, $2) ON CONFLICT DO NOTHING",
             )
             .bind(plan_id)
             .bind(dg_id)
@@ -577,19 +581,16 @@ impl PlanRepository for MySqlRepository {
 
 // ── Helpers ──
 
-/// Parse the `registration_allowed_plan_ids` TEXT column as a JSON `Vec<i64>`.
-/// Falls back to `[default_plan_id]` on parse failure (dirty data).
 fn parse_allowed_plan_ids(raw: &str, fallback: i64) -> Vec<i64> {
     serde_json::from_str::<Vec<i64>>(raw).unwrap_or_else(|_| vec![fallback])
 }
 
-/// Serialize a `Vec<i64>` to a JSON string.
 fn serialize_allowed_plan_ids(ids: &[i64]) -> String {
     serde_json::to_string(ids).unwrap_or_else(|_| "[1]".to_string())
 }
 
 #[async_trait]
-impl SettingsRepository for MySqlRepository {
+impl SettingsRepository for PgRepository {
     async fn get_registration_settings(&self) -> Result<Option<RegistrationSettings>, DbError> {
         let row: Option<(bool, i64, String)> = sqlx::query_as(
             "SELECT registration_enabled, default_registration_plan_id, \
@@ -615,9 +616,10 @@ impl SettingsRepository for MySqlRepository {
     ) -> Result<(), DbError> {
         let allowed_json = serialize_allowed_plan_ids(allowed_plan_ids);
         sqlx::query(
-            "INSERT IGNORE INTO app_settings (id, registration_enabled, \
+            "INSERT INTO app_settings (id, registration_enabled, \
              default_registration_plan_id, registration_allowed_plan_ids) \
-             VALUES (1, ?, ?, ?)",
+             VALUES (1, $1, $2, $3) \
+             ON CONFLICT (id) DO NOTHING",
         )
         .bind(enabled)
         .bind(default_plan_id)
@@ -637,11 +639,11 @@ impl SettingsRepository for MySqlRepository {
         sqlx::query(
             "INSERT INTO app_settings (id, registration_enabled, \
              default_registration_plan_id, registration_allowed_plan_ids) \
-             VALUES (1, ?, ?, ?) \
-             ON DUPLICATE KEY UPDATE \
-                 registration_enabled = VALUES(registration_enabled), \
-                 default_registration_plan_id = VALUES(default_registration_plan_id), \
-                 registration_allowed_plan_ids = VALUES(registration_allowed_plan_ids)",
+             VALUES (1, $1, $2, $3) \
+             ON CONFLICT (id) DO UPDATE SET \
+                 registration_enabled = EXCLUDED.registration_enabled, \
+                 default_registration_plan_id = EXCLUDED.default_registration_plan_id, \
+                 registration_allowed_plan_ids = EXCLUDED.registration_allowed_plan_ids",
         )
         .bind(enabled)
         .bind(default_plan_id)
