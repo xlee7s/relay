@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Space, Typography, Modal, Form, Input, message, Spin, Badge, Tooltip } from 'antd';
+import { Layout, Menu, Button, Space, Modal, Form, Input, message, Spin, Badge, Tooltip, Avatar } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, Suspense } from 'react';
 import {
@@ -13,6 +13,8 @@ import {
   TeamOutlined,
   NotificationOutlined,
   GithubOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { useI18n } from '../i18n/context';
 import api from '../api/client';
@@ -23,8 +25,6 @@ import { useAnnouncementBadge } from '../hooks/useAnnouncementBadge';
 import { makePasswordValidator } from '../utils/password';
 
 const { Sider, Content, Header } = Layout;
-const { Text } = Typography;
-
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -35,6 +35,7 @@ export default function MainLayout() {
   // notices have actually been shown.
   const { unread } = useAnnouncementBadge(user?.id ?? null);
   const [changePwOpen, setChangePwOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(true);
   const [pwForm] = Form.useForm();
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
@@ -90,6 +91,25 @@ export default function MainLayout() {
     ? [dashboardItem, ...sharedItems, ...adminOnlyItems]
     : sharedItems;
 
+  const routeLabels: Record<string, string> = {
+    '/': t('dashboard'),
+    '/account': t('personalCenter'),
+    '/shop': t('shop'),
+    '/rules': t('myRules'),
+    '/nodes': t('availableNodes'),
+    '/groups': t('deviceGroups'),
+    '/users': t('users'),
+    '/plans': t('planManagement'),
+    '/redeem-codes': t('redeemCodes'),
+    '/site-settings': t('siteSettings'),
+    '/settings': t('basicSettings'),
+    '/notify-settings': t('notifySettings'),
+    '/announcement-admin': t('announcementAdmin'),
+    '/announcements': t('announcements'),
+    '/audit-log': t('auditLog'),
+  };
+  const activePageLabel = routeLabels[location.pathname] || site.site_name || t('brand');
+
   // Expand whichever group holds the current page. Computed from the path, not
   // stored, so landing on /site-settings from a bookmark opens 系统设置 too.
   const openKeys = [
@@ -121,12 +141,20 @@ export default function MainLayout() {
   };
 
   return (
-    <Layout className="rp-app-shell">
+    <Layout className={`rp-app-shell ${navigationOpen ? 'rp-nav-open' : 'rp-nav-closed'}`}>
+      <button
+        type="button"
+        className="rp-sidebar-backdrop"
+        aria-label={t('cancel')}
+        onClick={() => setNavigationOpen(false)}
+      />
       <Sider
-        collapsible
+        trigger={null}
         breakpoint="lg"
-        collapsedWidth={72}
-        width={248}
+        collapsedWidth={0}
+        collapsed={!navigationOpen}
+        onBreakpoint={(broken) => setNavigationOpen(!broken)}
+        width={272}
         className="rp-sidebar"
       >
         <div className="rp-brand">
@@ -145,9 +173,29 @@ export default function MainLayout() {
           className="rp-main-menu"
           style={{ borderRight: 0 }}
         />
+        <div className="rp-sidebar-profile">
+          <Avatar size={36} icon={<UserOutlined />} className="rp-sidebar-avatar" />
+          <div className="rp-sidebar-profile-copy">
+            <strong>{user?.username || (isAdmin ? t('admin') : t('user'))}</strong>
+            <span>{isAdmin ? t('admin') : t('user')}</span>
+          </div>
+        </div>
       </Sider>
       <Layout className="rp-main-stage">
         <Header className="rp-topbar">
+          <div className="rp-topbar-context">
+            <Button
+              type="text"
+              className="rp-navigation-toggle"
+              icon={navigationOpen ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+              onClick={() => setNavigationOpen((open) => !open)}
+              aria-label={activePageLabel}
+            />
+            <div className="rp-topbar-route">
+              <span>{site.site_name || t('brand')}</span>
+              <strong>{activePageLabel}</strong>
+            </div>
+          </div>
           <Space size="middle" className="rp-topbar-actions">
             {/* v1.2.4: announcements live here rather than in the sidebar.
                 The banner already carries the current notice, so a menu row
@@ -169,9 +217,6 @@ export default function MainLayout() {
                 {t('announcements')}
               </Button>
             </Badge>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {isAdmin ? t('admin') : t('user')}
-            </Text>
             <Button type="text" size="small" icon={<LockOutlined />} onClick={() => setChangePwOpen(true)}>
               {t('changePassword')}
             </Button>
@@ -199,7 +244,9 @@ export default function MainLayout() {
               navigation to their chunk, showing a centered spinner instead of a
               blank pane. */}
           <Suspense fallback={<div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>}>
-            <div className="rp-content-inner"><Outlet /></div>
+            <div className="rp-content-inner">
+              <div className="rp-workspace"><Outlet /></div>
+            </div>
           </Suspense>
         </Content>
       </Layout>

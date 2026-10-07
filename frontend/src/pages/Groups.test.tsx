@@ -11,7 +11,8 @@ vi.mock('../api/client', () => ({
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock('../auth/useAuth', () => ({ useAuth: mockUseAuth }));
 
-import Groups, { buildInstallCommand } from './Groups';
+import Groups from './Groups';
+import { buildInstallCommand } from '../utils/nodeInstall';
 
 const ok = <T,>(data: T) => ({ code: 0, message: 'ok', data });
 

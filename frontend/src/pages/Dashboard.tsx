@@ -315,14 +315,14 @@ export default function Dashboard() {
           </Button>
         </Tooltip>
       </div>
-      <Row gutter={16} style={{ marginBottom: 20 }}>
-        <Col span={8}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col xs={24} sm={8}>
           <Card className="rp-stat-card"><Statistic title={t('users')} value={stats.users} prefix={<UserOutlined style={{ color: 'var(--rp-primary)' }} />} /></Card>
         </Col>
-        <Col span={8}>
+        <Col xs={24} sm={8}>
           <Card className="rp-stat-card"><Statistic title={t('forwardRules')} value={stats.rules} prefix={<ApiOutlined style={{ color: 'var(--rp-primary)' }} />} /></Card>
         </Col>
-        <Col span={8}>
+        <Col xs={24} sm={8}>
           <Card className="rp-stat-card"><Statistic title={t('deviceGroups')} value={stats.groups} prefix={<CloudServerOutlined style={{ color: 'var(--rp-primary)' }} />} /></Card>
         </Col>
       </Row>
