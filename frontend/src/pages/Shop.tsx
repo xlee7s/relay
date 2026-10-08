@@ -206,6 +206,7 @@ export default function Shop() {
           rowKey="id"
           pagination={{ pageSize: 10 }}
           size="small"
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: t('noOrders') }}
         />
       </Card>

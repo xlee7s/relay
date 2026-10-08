@@ -1286,7 +1286,7 @@ function DiagnoseNodeRow({ node, t, isAdmin }: { node: NodeDiagnoseStatus; t: (k
         )}
       </Space>
       {node.status === 'result' && node.results.length > 0 && (
-        <Table<DiagnoseTargetResult> size="small" pagination={false} style={{ marginTop: 8 }}
+        <Table<DiagnoseTargetResult> size="small" pagination={false} scroll={{ x: 'max-content' }} style={{ marginTop: 8 }}
           dataSource={node.results} rowKey="address"
           columns={[
             { title: t('diagnoseTarget'), dataIndex: 'address', key: 'address', render: (v: string) => <span className="rp-mono">{v}</span> },

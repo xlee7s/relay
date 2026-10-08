@@ -79,6 +79,7 @@ export default function TrafficChart({ rules }: Props) {
 
   return (
     <Card
+      className="rp-chart-card"
       title={t('trafficHistory')}
       style={{ marginTop: 16 }}
       extra={
@@ -132,8 +133,9 @@ export default function TrafficChart({ rules }: Props) {
             legend={{ color: { position: 'top', layout: { justifyContent: 'flex-end' } } }}
             style={{ radiusTopLeft: 4, radiusTopRight: 4 }}
             axis={{
-              // 30 days of labels don't fit; let the axis thin them out.
-              x: { labelAutoHide: true, labelAutoRotate: false, title: false },
+              // Time remains available in the tooltip, but axis labels are
+              // intentionally hidden so every viewport stays legible.
+              x: false,
               y: {
                 title: false,
                 labelFormatter: (v: number) => formatBytes(v),

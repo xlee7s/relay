@@ -345,6 +345,7 @@ export default function Dashboard() {
               rowKey="group_id"
               pagination={false}
               size="small"
+              scroll={{ x: 'max-content' }}
               onRow={() => ({ onClick: () => navigate('/nodes'), style: { cursor: 'pointer' } })}
             />
         }

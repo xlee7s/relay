@@ -98,6 +98,7 @@ export default function NodeMetricsChart() {
 
   return (
     <Card
+      className="rp-chart-card"
       title={t('nodeMetricsHistory')}
       style={{ marginTop: 16 }}
       extra={
@@ -138,10 +139,7 @@ export default function NodeMetricsChart() {
             colorField="node"
             scale={{ color: { range: SERIES_COLORS_LIGHT } }}
             legend={{ color: { position: 'top', layout: { justifyContent: 'flex-end' } } }}
-            axis={{
-              x: { labelAutoHide: true, labelAutoRotate: false, title: false },
-              y: { title: false, labelFormatter: fmt },
-            }}
+            axis={{ x: false, y: { title: false, labelFormatter: fmt } }}
             tooltip={{
               title: (d: Point) => d.label,
               items: [

@@ -382,6 +382,8 @@ body {
   letter-spacing: 0.025em;
   background: #f7f9fd !important;
   border-bottom-color: var(--rp-border) !important;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .ant-table-tbody > tr > td {
@@ -872,6 +874,25 @@ body {
 
   .ant-card-body {
     padding: 16px;
+  }
+
+  /* Charts need their title and controls on separate rows; squeezing both into
+     one header caused titles to truncate and segmented controls to overflow. */
+  .rp-chart-card .ant-card-head-wrapper {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .rp-chart-card .ant-card-head-title,
+  .rp-chart-card .ant-card-extra {
+    width: 100%;
+    margin-inline: 0;
+    padding: 0;
+  }
+
+  .rp-chart-card .ant-card-extra > .ant-space {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .ant-card-head {

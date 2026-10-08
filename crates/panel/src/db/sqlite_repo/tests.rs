@@ -5236,6 +5236,7 @@ fn metric(node: &str, group: i64, hour: &str, cpu: f64, mem: f64, conns: i64) ->
 #[tokio::test]
 async fn node_metrics_average_and_peak_are_independent() {
     let db = repo().await;
+    seed_group(&db, 1).await;
     let h = "2026-07-28 10:00:00";
     for cpu in [0.1_f64, 0.9, 0.2] {
         db.record_node_metrics(&metric("n1", 1, h, cpu, 0.5, 10))
@@ -5270,6 +5271,7 @@ async fn node_metrics_average_and_peak_are_independent() {
 #[tokio::test]
 async fn node_metrics_daily_average_is_sample_weighted() {
     let db = repo().await;
+    seed_group(&db, 1).await;
     for cpu in [0.2_f64, 0.2, 0.2] {
         db.record_node_metrics(&metric("n1", 1, "2026-07-28 10:00:00", cpu, 0.0, 0))
             .await
@@ -5296,6 +5298,7 @@ async fn node_metrics_daily_average_is_sample_weighted() {
 #[tokio::test]
 async fn node_metrics_keep_one_series_per_node() {
     let db = repo().await;
+    seed_group(&db, 1).await;
     let h = "2026-07-28 10:00:00";
     db.record_node_metrics(&metric("n1", 1, h, 0.1, 0.1, 5))
         .await
@@ -5319,6 +5322,7 @@ async fn node_metrics_keep_one_series_per_node() {
 #[tokio::test]
 async fn node_metrics_prune_respects_the_cutoff() {
     let db = repo().await;
+    seed_group(&db, 1).await;
     db.record_node_metrics(&metric("n1", 1, "2026-07-01 10:00:00", 0.5, 0.5, 1))
         .await
         .unwrap();
@@ -5334,6 +5338,32 @@ async fn node_metrics_prune_respects_the_cutoff() {
         .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].bucket, "2026-07-28 10:00:00");
+}
+
+#[tokio::test]
+async fn node_metrics_for_deleted_group_are_not_returned() {
+    let db = repo().await;
+    seed_group(&db, 1).await;
+    db.record_node_metrics(&metric(
+        "removed-node",
+        1,
+        "2026-07-28 10:00:00",
+        0.5,
+        0.5,
+        1,
+    ))
+    .await
+    .unwrap();
+    sqlx::query("DELETE FROM device_groups WHERE id = 1")
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+    let rows = db
+        .query_node_metrics("2026-07-28 00:00:00", false)
+        .await
+        .unwrap();
+    assert!(rows.is_empty(), "deleted groups must not leave chart series");
 }
 
 // ── Audit log (v1.2.4) ──
