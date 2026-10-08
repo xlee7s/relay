@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api/client';
 import type { ApiEnvelope, Plan, Order, UserSelf } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import { formatBytes } from '../utils/format';
 
 const { Text, Title } = Typography;
@@ -108,7 +109,7 @@ export default function Shop() {
     { title: t('orderId'), dataIndex: 'id', key: 'id', width: 70 },
     { title: t('planName'), dataIndex: 'plan_name', key: 'plan_name' },
     { title: t('planPrice'), dataIndex: 'price', key: 'price', render: (v: string) => <span className="rp-mono">{v}</span> },
-    { title: t('purchaseTime'), dataIndex: 'created_at', key: 'created_at', render: (v: string) => <span className="rp-mono">{v}</span> },
+    { title: t('purchaseTime'), dataIndex: 'created_at', key: 'created_at', render: (v: string) => <span className="rp-mono">{formatChinaTime(v)}</span> },
   ];
 
   return (

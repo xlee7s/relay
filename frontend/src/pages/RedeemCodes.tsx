@@ -5,6 +5,7 @@ import api from '../api/client';
 import type { ApiEnvelope, RedeemCode, ListCodesResponse, CreateCodesResponse } from '../api/types';
 import { MAX_REDEEM_BATCH } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import { copyText } from '../utils/clipboard';
 
 const { Text, Paragraph } = Typography;
@@ -154,7 +155,7 @@ export default function RedeemCodes() {
       },
     },
     { title: t('usedAt'), dataIndex: 'used_at', key: 'used_at', render: (v: string | null) => v ?? '-' },
-    { title: t('codeExpiresAt'), dataIndex: 'expires_at', key: 'expires_at', render: (v: string | null) => v ?? t('neverExpires') },
+    { title: t('codeExpiresAt'), dataIndex: 'expires_at', key: 'expires_at', render: (v: string | null) => v ? formatChinaTime(v) : t('neverExpires') },
     { title: t('batch'), dataIndex: 'batch_id', key: 'batch_id' },
     { title: t('remark'), dataIndex: 'remark', key: 'remark', render: (v: string) => v || '-' },
     {

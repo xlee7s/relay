@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api/client';
 import type { ApiEnvelope } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 
 const { Text } = Typography;
 
@@ -76,7 +77,7 @@ export default function AllOrders() {
       dataIndex: 'price',
       key: 'price',
       width: 110,
-      render: (v: string) => <span className="rp-mono">{v}</span>,
+      render: (v: string) => <span className="rp-mono">{formatChinaTime(v)}</span>,
     },
     {
       title: t('purchaseTime'),

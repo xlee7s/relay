@@ -5,6 +5,7 @@ import api from '../api/client';
 import type { ApiEnvelope, NotifyConfigPublic, NotifyHistoryEntry, TestNotifyResult } from '../api/types';
 import { MIN_OFFLINE_ALERT_SECS } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import type { I18nContextValue } from '../i18n/context';
 
 const { Text } = Typography;
@@ -133,7 +134,7 @@ export default function NotifySettings() {
   const emailConfigured = Boolean(cfg?.smtp_host && cfg.smtp_to);
 
   const columns = [
-    { title: t('notifyHistoryTime'), dataIndex: 'created_at', key: 'created_at', width: 180, render: (v: string) => new Date(v).toLocaleString() },
+    { title: t('notifyHistoryTime'), dataIndex: 'created_at', key: 'created_at', width: 180, render: (v: string) => formatChinaTime(v) },
     { title: t('notifyHistoryEvent'), dataIndex: 'event', key: 'event', width: 140, render: (v: string) => {
       const key = eventKey[v as keyof typeof eventKey];
       return key ? t(key) : v;

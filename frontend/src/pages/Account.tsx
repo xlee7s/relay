@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import type { ApiEnvelope, UserSelf } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import { formatBytes } from '../utils/format';
 import { makePasswordValidator } from '../utils/password';
 import { useAuth } from '../auth/useAuth';
@@ -166,7 +167,7 @@ export default function Account() {
           </Descriptions.Item>
           {/* v1.0.8: plan expiry (null = no expiry). */}
           <Descriptions.Item label={t('accountPlanExpiry')}>
-            {me.plan_expire_at ? <span className="rp-mono">{me.plan_expire_at}</span> : t('unlimited')}
+            {me.plan_expire_at ? <span className="rp-mono">{formatChinaTime(me.plan_expire_at)}</span> : t('unlimited')}
           </Descriptions.Item>
           {/* v1.0.8: available lines — "全部" when unrestricted (admin or
               all_device_groups), otherwise the specific authorized group names. */}
@@ -221,7 +222,7 @@ export default function Account() {
             )}
           </Descriptions.Item>
           <Descriptions.Item label={t('accountMemberSince')}>
-            <span className="rp-mono">{me.registered_at || '-'}</span>
+            <span className="rp-mono">{formatChinaTime(me.registered_at)}</span>
           </Descriptions.Item>
           {/* v1.2.4: only rendered when the operator filled it in — an empty
               "Support" row would just look like something is broken. */}

@@ -3,6 +3,7 @@ import { Drawer, Descriptions, Tag, Button, Popconfirm, message } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import { formatPercent, formatBytes, formatBps, formatUptime } from '../../utils/format';
 import { useI18n } from '../../i18n/context';
+import { formatChinaTime } from '../../utils/dateTime';
 import { CountryFlag } from './CountryFlag';
 import type { ApiEnvelope, NodeDisplayRow } from '../../api/types';
 import api from '../../api/client';
@@ -89,7 +90,7 @@ export function NodeDetailDrawer({ row, open, onClose, isAdmin, panelProtocol, o
             {formatBytes(row.boot_upload_bytes)} / {formatBytes(row.boot_download_bytes)}
           </Descriptions.Item>
           <Descriptions.Item label={t('systemUptime')}>{formatUptime(row.uptime, labels)}</Descriptions.Item>
-          <Descriptions.Item label={t('lastSeen')}>{row.last_seen || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('lastSeen')}>{formatChinaTime(row.last_seen)}</Descriptions.Item>
 
           {/* Admin-only fields */}
           {isAdmin && (

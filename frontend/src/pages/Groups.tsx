@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import api from '../api/client';
 import type { ApiEnvelope, DeviceGroup, User, NodeStatus } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import { copyText } from '../utils/clipboard';
 import { buildInstallCommand } from '../utils/nodeInstall';
 import { useAuth } from '../auth/useAuth';
@@ -411,7 +412,7 @@ export default function Groups() {
             { title: 'ID', dataIndex: 'node_id', key: 'node_id', width: 120, render: (v: string | undefined) => v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 8)}...{v.slice(-4)}</Text> : '-' },
             { title: t('status'), dataIndex: 'online', key: 'online', width: 80, render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? t('online') : t('offline')}</Tag> },
             { title: t('nodeVersion'), dataIndex: 'node_version', key: 'version', width: 90, render: (v: string | undefined) => v ? <span className="rp-mono" style={{ fontSize: 12 }}>{v}</span> : '-' },
-            { title: t('lastSeen'), dataIndex: 'last_seen', key: 'last_seen', width: 120, render: (v: string | undefined) => v ? <span style={{ fontSize: 12 }}>{v}</span> : '-' },
+            { title: t('lastSeen'), dataIndex: 'last_seen', key: 'last_seen', width: 180, render: (v: string | undefined) => <span style={{ fontSize: 12 }}>{formatChinaTime(v)}</span> },
           ]}
         />
       </div>

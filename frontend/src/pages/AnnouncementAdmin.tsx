@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api/client';
 import type { ApiEnvelope, Announcement, AnnouncementList } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import { renderMarkdown } from '../utils/markdown';
 import { invalidateActiveAnnouncement } from '../hooks/useActiveAnnouncement';
 import { kindLabel } from '../utils/announcementKind';
@@ -159,7 +160,7 @@ export default function AnnouncementAdmin() {
       dataIndex: 'published_at',
       key: 'published_at',
       width: 170,
-      render: (v: string) => <span className="rp-mono">{v}</span>,
+      render: (v: string) => <span className="rp-mono">{formatChinaTime(v)}</span>,
     },
     {
       title: t('expiresAt'),
@@ -167,7 +168,7 @@ export default function AnnouncementAdmin() {
       key: 'expires_at',
       width: 170,
       render: (v: string | null) =>
-        v ? <span className="rp-mono">{v}</span> : <Text type="secondary">{t('neverExpires')}</Text>,
+        v ? <span className="rp-mono">{formatChinaTime(v)}</span> : <Text type="secondary">{t('neverExpires')}</Text>,
     },
     {
       title: t('auditActor'),

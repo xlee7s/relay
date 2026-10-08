@@ -6,6 +6,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import api from '../api/client';
 import type { ApiEnvelope, User, Plan } from '../api/types';
 import { useI18n } from '../i18n/context';
+import { formatChinaTime } from '../utils/dateTime';
 import { formatBytes } from '../utils/format';
 import { makePasswordValidator } from '../utils/password';
 import { useAuth } from '../auth/useAuth';
@@ -343,7 +344,7 @@ export default function Users() {
         );
       },
     },
-    { title: t('joined'), dataIndex: 'created_at', key: 'created_at' },
+    { title: t('joined'), dataIndex: 'created_at', key: 'created_at', render: (v: string) => formatChinaTime(v) },
     {
       // v0.4.20: standalone "Rule Management" column for admin user-rule management.
       title: t('manageRulesColumn'), key: 'manageRules', width: 70,
@@ -500,7 +501,7 @@ export default function Users() {
             <p style={{ marginTop: 0 }}>
               <strong>{t('currentPlan')}:</strong> {planName(editing.plan_id)}
               <span style={{ marginLeft: 16 }}>
-                <strong>{t('planExpiry')}:</strong> {editing.plan_expire_at || t('neverExpires')}
+                <strong>{t('planExpiry')}:</strong> {editing.plan_expire_at ? formatChinaTime(editing.plan_expire_at) : t('neverExpires')}
               </span>
             </p>
 
