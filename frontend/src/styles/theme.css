@@ -767,6 +767,13 @@ body {
   white-space: nowrap;
 }
 
+/* The node table sizes each column from its real contents. Keep every header
+   intact so Chinese labels never turn into vertical text in a narrow column. */
+.rp-node-desktop-table .ant-table-thead > tr > th,
+.rp-node-desktop-table .ant-table-column-title {
+  white-space: nowrap;
+}
+
 .ant-table-tbody > tr.rp-node-offline > td,
 .rp-node-offline-card {
   color: var(--rp-node-offline-text);

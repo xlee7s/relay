@@ -8,7 +8,6 @@ import { formatBps, formatBytes, formatUptime, formatPercent } from '../../utils
 import { versionRelation, versionTagColor } from '../../utils/version';
 import { NetworkCell, wsDownTag } from './shared';
 import { resolveNodeUpgrade } from './upgrade';
-import { nodeDesktopColumnWidths } from './tableLayout';
 
 interface Props {
   rows: NodeDisplayRow[];
@@ -38,7 +37,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
 
   const columns = [
     {
-      title: t('status'), key: 'status', width: nodeDesktopColumnWidths.status, fixed: 'left' as const,
+      title: t('status'), key: 'status',
       render: (_: unknown, r: NodeDisplayRow) => {
         const v = r.config_protocol_version;
         if (v != null && panelProtocol > 0 && v !== panelProtocol) {
@@ -58,7 +57,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
     // v1.2: compared against the latest NODE release (latestNodeVersion), not
     // the panel version.
     {
-      title: t('nodeVersion'), dataIndex: 'node_version', key: 'node_version', width: nodeDesktopColumnWidths.nodeVersion,
+      title: t('nodeVersion'), dataIndex: 'node_version', key: 'node_version',
       render: (v: string | null) => {
         if (!v) return <Typography.Text type="secondary">-</Typography.Text>;
         // v1.2: if the node-version check failed, we can't vouch for any
@@ -75,7 +74,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
     // neutral state (PR5). Protocol-incompatible and a failed lookup both take
     // priority over version status.
     ...(onUpgrade ? [{
-      title: <span className="rp-table-heading-nowrap">{t('nodeUpgrade')}</span>, key: 'upgrade', width: 84,
+      title: <span className="rp-table-heading-nowrap">{t('nodeUpgrade')}</span>, key: 'upgrade',
       render: (_: unknown, r: NodeDisplayRow) => {
         const { state } = resolveNodeUpgrade(r, latestNodeVersion, panelProtocol, nodeVersionCheckFailed);
         switch (state) {
@@ -121,39 +120,39 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       render: (_: unknown, r: NodeDisplayRow) => <NetworkCell row={r} t={t} showIp={Boolean(onUpgrade)} />,
     },
     {
-      title: t('connections'), dataIndex: 'connections', key: 'connections', width: 70,
+      title: t('connections'), dataIndex: 'connections', key: 'connections',
       render: (v: number) => <span className="rp-mono">{v || 0}</span>,
     },
     {
-      title: 'CPU', key: 'cpu', width: nodeDesktopColumnWidths.cpu,
+      title: 'CPU', key: 'cpu',
       render: (_: unknown, r: NodeDisplayRow) => <NodeResourceBar value={r.cpu} tooltip={`CPU: ${formatPercent(r.cpu)}`} />,
     },
     {
-      title: t('mem'), key: 'mem', width: nodeDesktopColumnWidths.mem,
+      title: t('mem'), key: 'mem',
       render: (_: unknown, r: NodeDisplayRow) => <NodeResourceBar value={r.mem} tooltip={`${t('mem')}: ${formatPercent(r.mem)}`} />,
     },
     {
-      title: t('disk'), key: 'disk', width: nodeDesktopColumnWidths.disk,
+      title: t('disk'), key: 'disk',
       render: (_: unknown, r: NodeDisplayRow) => <NodeDiskBar usagePercent={r.disk_usage_percent} used={r.disk_used} total={r.disk_total} mount={r.disk_mount} t={t} />,
     },
     {
-      title: `${t('uploadRate')}/${t('downloadRate')}`, key: 'rate', width: nodeDesktopColumnWidths.rate,
+      title: `${t('uploadRate')}/${t('downloadRate')}`, key: 'rate',
       render: (_: unknown, r: NodeDisplayRow) => (
         <span className="rp-mono rp-node-throughput">{formatBps(r.upload_bps)} / {formatBps(r.download_bps)}</span>
       ),
     },
     {
-      title: `${t('totalUpload')}/${t('totalDownload')}`, key: 'traffic', width: nodeDesktopColumnWidths.traffic,
+      title: `${t('totalUpload')}/${t('totalDownload')}`, key: 'traffic',
       render: (_: unknown, r: NodeDisplayRow) => (
         <span className="rp-mono rp-node-throughput">{formatBytes(r.boot_upload_bytes)} / {formatBytes(r.boot_download_bytes)}</span>
       ),
     },
     {
-      title: t('systemUptime'), key: 'uptime', width: 90,
+      title: t('systemUptime'), key: 'uptime',
       render: (_: unknown, r: NodeDisplayRow) => <span className="rp-mono">{formatUptime(r.uptime, labels)}</span>,
     },
     {
-      title: t('resourceDetails'), key: 'detail', width: 70, fixed: 'right' as const,
+      title: t('resourceDetails'), key: 'detail',
       render: (_: unknown, r: NodeDisplayRow) => (
         <Button size="small" type="link" onClick={() => openDetail(r)}>{t('resourceDetails')}</Button>
       ),
@@ -162,7 +161,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
 
   if (onDelete) {
     columns.push({
-      title: t('actions'), key: 'remove', width: 72, fixed: 'right' as const,
+      title: t('actions'), key: 'remove',
       render: (_: unknown, r: NodeDisplayRow) =>
         // Online rows get nothing rather than a disabled button: there is no
         // sensible action here, and a greyed-out control invites a hunt for the
@@ -184,6 +183,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
 
   return (
     <Table
+      className="rp-node-desktop-table"
       dataSource={rows}
       columns={columns}
       rowKey={(r) => `${r.group_id}:${r.node_id || 'legacy'}`}
