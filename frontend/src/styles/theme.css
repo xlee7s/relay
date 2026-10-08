@@ -390,6 +390,13 @@ body {
   padding-block: 14px !important;
   border-bottom-color: #edf1f6 !important;
   transition: background 0.18s ease;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.ant-table-tbody > tr > td .ant-space {
+  flex-wrap: nowrap;
 }
 
 .ant-table-tbody > tr:last-child > td {
