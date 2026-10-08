@@ -122,6 +122,22 @@ describe('a failed list read does not discard the other list', () => {
 // ── v1.2.7: the filters live in the URL. They were component state, so a
 // refresh dropped them and the filtered view could not be linked to anyone.
 describe('rule filters are URL state', () => {
+  it('uses a shared group name in the regular-user filter', async () => {
+    mockUseAuth.mockReturnValue({ isAdmin: false, user: { id: 2, username: 'user' } });
+    mockGet.mockImplementation((url: string) => {
+      if (url.startsWith('/rules')) return Promise.resolve(ok([rule()]));
+      if (url === '/groups') return Promise.resolve(ok([]));
+      if (url === '/groups/shared') return Promise.resolve(ok([group({ name: 'de-9929' })]));
+      return Promise.resolve(ok({ traffic_used: 0, traffic_limit: 0 }));
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('hk-web');
+    await user.click(screen.getByLabelText('filterByGroup'));
+    expect(await screen.findByText('de-9929')).toBeInTheDocument();
+    expect(screen.queryByText('unknownGroup (#7)')).toBeNull();
+  });
+
   it('restores the search term from the query string on first render', async () => {
     renderPage('/rules?q=jp');
     await waitFor(() => expect(screen.getByText('jp-game')).toBeInTheDocument());

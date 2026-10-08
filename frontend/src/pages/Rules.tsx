@@ -227,9 +227,6 @@ export default function Rules() {
     }
     return !!selfQuota && selfQuota.limit > 0 && selfQuota.used >= selfQuota.limit;
   };
-  // v0.4.9: group lookup map for the "group name" column + filter. Memoized so
-  // the column render + filter options share one derivation.
-  const groupMap = useMemo(() => new Map(groups.map(g => [g.id, g])), [groups]);
   // v1.0.8: group-name + listen-IP lookup for the rule columns. A regular user
   // does NOT own the (admin-owned) device groups, so GET /groups returns none
   // for them and the columns rendered "未知分组 / 未配置". Their AUTHORIZED
@@ -357,7 +354,7 @@ export default function Rules() {
     if (visibleRules.length === 0) return;
     const label = selectedGroup === null
       ? 'filtered'
-      : exportFileLabel(groupMap.get(selectedGroup)?.name ?? '') || `group-${selectedGroup}`;
+      : exportFileLabel(groupInfo.get(selectedGroup)?.name ?? '') || `group-${selectedGroup}`;
     downloadText(
       `relaypanel-rules-${label}-${new Date().toISOString().slice(0, 10)}.json`,
       buildExportJSON(visibleRules),
@@ -994,7 +991,9 @@ const IMPORT_DEFAULTS = {
             onChange={(v: number | undefined) => { setFilter('group', v == null ? null : String(v)); setSelectedRowKeys([]); }}
             options={Array.from(new Set(rules.map(r => r.device_group_in)))
               .map(gid => {
-                const g = groupMap.get(gid);
+                // Ordinary users discover admin-owned lines through
+                // `/groups/shared`, which is already merged into groupInfo.
+                const g = groupInfo.get(gid);
                 return { value: gid, label: g ? g.name : `${t('unknownGroup')} (#${gid})` };
               })}
           />
