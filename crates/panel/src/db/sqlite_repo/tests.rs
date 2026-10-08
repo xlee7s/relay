@@ -3577,19 +3577,21 @@ async fn buy_plan_reset_traffic_renewal_restarts_expiry_from_now() {
         .await
         .unwrap();
 
-    let expire: (Option<String>,) =
-        sqlx::query_as("SELECT plan_expire_at FROM users WHERE id = ?")
-            .bind(alice)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+    let expire: (Option<String>,) = sqlx::query_as("SELECT plan_expire_at FROM users WHERE id = ?")
+        .bind(alice)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
     let expire = expire.0.expect("time plan must have an expiry");
     let now = sqlx::query_as::<_, (String,)>("SELECT datetime('now')")
         .fetch_one(&db.pool)
         .await
         .unwrap()
         .0;
-    assert!(expire > now, "expiry must be in the future ({expire} <= {now})");
+    assert!(
+        expire > now,
+        "expiry must be in the future ({expire} <= {now})"
+    );
     assert!(
         expire.as_str() < "2099-01-01 00:00:00",
         "reset renewal must restart from now, got {expire}"
