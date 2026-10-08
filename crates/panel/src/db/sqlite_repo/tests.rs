@@ -3559,6 +3559,43 @@ async fn buy_plan_renewal_stacks_expiry_from_current_end() {
     );
 }
 
+/// A same-plan purchase with reset_traffic is a fresh purchase, so it must not
+/// retain or extend the previous time-plan expiry.
+#[tokio::test]
+async fn buy_plan_reset_traffic_renewal_restarts_expiry_from_now() {
+    let db = repo().await;
+    let (alice, pid) = seed_buyer_and_plan(&db, "100.00", 0, "5.00", 30, true).await;
+    sqlx::query("UPDATE users SET plan_expire_at = ?, plan_id = ? WHERE id = ?")
+        .bind("2099-12-31 00:00:00")
+        .bind(pid)
+        .bind(alice)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+    db.buy_plan(alice, pid, "p1", 500, 1_000, 10, 30, true, false, &[], &[])
+        .await
+        .unwrap();
+
+    let expire: (Option<String>,) =
+        sqlx::query_as("SELECT plan_expire_at FROM users WHERE id = ?")
+            .bind(alice)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+    let expire = expire.0.expect("time plan must have an expiry");
+    let now = sqlx::query_as::<_, (String,)>("SELECT datetime('now')")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap()
+        .0;
+    assert!(expire > now, "expiry must be in the future ({expire} <= {now})");
+    assert!(
+        expire.as_str() < "2099-01-01 00:00:00",
+        "reset renewal must restart from now, got {expire}"
+    );
+}
+
 /// v1.0.9: switching to a DIFFERENT plan replaces the quota with the new plan's
 /// amount (not stacked) and resets usage to 0 — the new plan starts fresh.
 #[tokio::test]

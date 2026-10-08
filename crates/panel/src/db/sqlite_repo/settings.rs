@@ -286,23 +286,20 @@ impl PlanRepository for SqliteRepository {
         }
         let new_balance = relay_shared::money::cents_to_balance(balance_cents - price_cents);
 
-        // Renew (buying the SAME plan again) vs switch (a different plan, or the
-        // user had none). These diverge on traffic + expiry:
-        //   - switch: quota REPLACES the old (traffic_limit = new, traffic_used
-        //     = 0) and the expiry is recomputed from now — the new plan starts
-        //     fresh, old usage/time does NOT carry over.
-        //   - renew:  quota STACKS (traffic_limit += new, traffic_used kept) and
-        //     the expiry extends from max(now, current) — 加流量/延期.
-        // A missing current plan (None) is treated as a switch (fresh start).
+        // A different plan, no current plan, or an explicit traffic reset all
+        // start a fresh purchase: quota replaces the old one and expiry is
+        // recomputed from now. Only an ordinary same-plan renewal stacks quota
+        // and extends expiry from max(now, current).
         let is_switch = current_plan_id != Some(plan_id);
+        let starts_fresh = is_switch || reset_traffic;
 
         // Compute the new expiry. duration_days=0 → NULL (no expiry). Stored as
         // 'YYYY-MM-DD HH:MM:SS' UTC (lexically comparable, same as created_at).
         // SQLite's datetime() does the civil-calendar math.
         let new_expire: Option<String> = if duration_days <= 0 {
             None
-        } else if is_switch {
-            // Switch: fresh expiry = now + duration_days (no carry-over).
+        } else if starts_fresh {
+            // A switch or explicit reset: fresh expiry = now + duration_days.
             let row: (String,) = sqlx::query_as("SELECT datetime('now', ? || ' days')")
                 .bind(format!("+{}", duration_days))
                 .fetch_one(&mut *tx)
@@ -320,28 +317,9 @@ impl PlanRepository for SqliteRepository {
             Some(row.0)
         };
 
-        // Apply the user update per the renew/switch split above.
-        if is_switch {
-            // Switch: traffic_limit = new quota, traffic_used reset to 0.
-            sqlx::query(
-                "UPDATE users SET \
-                 balance = ?, traffic_limit = ?, traffic_used = 0, max_rules = ?, \
-                 plan_id = ?, plan_expire_at = ? \
-                 WHERE id = ?",
-            )
-            .bind(&new_balance)
-            .bind(traffic_to_add)
-            .bind(plan_max_rules)
-            .bind(plan_id)
-            .bind(&new_expire)
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await?;
-        } else if reset_traffic {
-            // Renew + the plan's reset_traffic flag: start a fresh quota just
-            // like switching plans. A reset must replace BOTH the allowance
-            // and its usage; otherwise a same-plan purchase still accumulates
-            // quota and behaves differently from a plan switch.
+        // Apply the user update per the fresh-purchase/ordinary-renewal split.
+        if starts_fresh {
+            // Reset both allowance and usage, including on a same-plan reset.
             sqlx::query(
                 "UPDATE users SET \
                  balance = ?, traffic_limit = ?, traffic_used = 0, \
