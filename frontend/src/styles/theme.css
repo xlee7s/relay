@@ -760,6 +760,13 @@ body {
   white-space: nowrap;
 }
 
+/* Chinese table headings may otherwise break between every character when a
+   short action column is squeezed. Node upgrade is one semantic label. */
+.rp-table-heading-nowrap {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 .ant-table-tbody > tr.rp-node-offline > td,
 .rp-node-offline-card {
   color: var(--rp-node-offline-text);

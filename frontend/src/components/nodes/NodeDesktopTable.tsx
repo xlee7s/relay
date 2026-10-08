@@ -75,7 +75,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
     // neutral state (PR5). Protocol-incompatible and a failed lookup both take
     // priority over version status.
     ...(onUpgrade ? [{
-      title: t('nodeUpgrade'), key: 'upgrade', width: nodeDesktopColumnWidths.nodeUpgrade,
+      title: <span className="rp-table-heading-nowrap">{t('nodeUpgrade')}</span>, key: 'upgrade', width: 84,
       render: (_: unknown, r: NodeDisplayRow) => {
         const { state } = resolveNodeUpgrade(r, latestNodeVersion, panelProtocol, nodeVersionCheckFailed);
         switch (state) {
@@ -114,11 +114,10 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       },
     }] : []),
     {
-      // Let the network column grow with an IPv6 address but shrink to the
-      // flag when the user view contains no IP. `minWidth` works with the
-      // table's automatic layout without forcing the whole table to a fixed
-      // max-content width.
-      title: t('network'), key: 'network', minWidth: onUpgrade ? 270 : 72,
+      // Deliberately leave the width unset: the header should be no wider than
+      // the flag/IP content in the rows. This keeps the user view compact and
+      // lets an administrator's IPv6 address determine the needed width.
+      title: t('network'), key: 'network',
       render: (_: unknown, r: NodeDisplayRow) => <NetworkCell row={r} t={t} showIp={Boolean(onUpgrade)} />,
     },
     {
@@ -196,7 +195,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       pagination={false}
       size="small"
       tableLayout="auto"
-      scroll={{ x: '100%' }}
+      scroll={{ x: 'max-content' }}
     />
   );
 }
