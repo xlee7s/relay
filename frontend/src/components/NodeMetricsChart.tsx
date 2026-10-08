@@ -1,4 +1,4 @@
-import { Card, Segmented, Space, Spin, Empty, message } from 'antd';
+import { Card, Segmented, Spin, Empty, message } from 'antd';
 import { Line } from '@ant-design/charts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api/client';
@@ -102,7 +102,7 @@ export default function NodeMetricsChart() {
       title={t('nodeMetricsHistory')}
       style={{ marginTop: 16 }}
       extra={
-        <Space wrap>
+        <div className="rp-chart-controls rp-node-chart-controls">
           <Segmented
             value={metric}
             onChange={(v) => setMetric(v as Metric)}
@@ -120,7 +120,7 @@ export default function NodeMetricsChart() {
               { value: '7d', label: t('range7d') },
             ]}
           />
-        </Space>
+        </div>
       }
     >
       <Spin spinning={loading}>

@@ -1299,6 +1299,59 @@ body {
   background: #fff !important;
 }
 
+/* Trend panels are dashboard workspaces, not generic cards: their controls
+   share one quiet toolbar and the chart keeps a stable, spacious canvas. */
+.rp-chart-card {
+  overflow: hidden;
+  border: 1px solid #dce4f0 !important;
+  background: linear-gradient(145deg, #ffffff 0%, #fbfcff 100%) !important;
+  box-shadow: 0 12px 30px rgba(40, 58, 91, 0.065) !important;
+}
+
+.rp-chart-card .ant-card-head {
+  min-height: 70px;
+  padding-inline: 20px !important;
+  border-bottom: 1px solid #e5ebf4;
+  background: linear-gradient(90deg, #ffffff, #f8faff);
+}
+
+.rp-chart-card .ant-card-head-title {
+  color: #1c2a42;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+}
+
+.rp-chart-card .ant-card-body {
+  padding: 18px 20px 20px;
+}
+
+.rp-chart-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid #e0e7f2;
+  border-radius: 12px;
+  background: #f2f5fa;
+}
+
+.rp-chart-controls .ant-segmented {
+  padding: 2px;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.rp-chart-controls .ant-segmented-item-selected {
+  box-shadow: 0 2px 7px rgba(42, 67, 112, 0.14);
+}
+
+.rp-chart-controls .ant-select-selector {
+  min-height: 32px !important;
+  border-color: transparent !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+}
+
 .rp-stat-card::before {
   top: 18px;
   right: 18px;
@@ -1633,6 +1686,34 @@ body {
   .rp-rule-toolbar .ant-dropdown-trigger {
     width: 100% !important;
     min-width: 0 !important;
+  }
+
+  .rp-chart-card .ant-card-head {
+    min-height: 0;
+    padding: 15px 16px !important;
+  }
+
+  .rp-chart-card .ant-card-body {
+    padding: 14px 12px 16px;
+  }
+
+  .rp-chart-card .ant-card-extra > .rp-chart-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rp-chart-controls {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .rp-traffic-chart-controls .ant-select {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .rp-chart-controls .ant-segmented {
+    flex: 1 1 auto;
   }
 
   .ant-card-head {

@@ -1,4 +1,4 @@
-import { Card, Segmented, Select, Space, Spin, Empty, message } from 'antd';
+import { Card, Segmented, Select, Spin, Empty, message } from 'antd';
 import { Column } from '@ant-design/charts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api/client';
@@ -83,7 +83,7 @@ export default function TrafficChart({ rules }: Props) {
       title={t('trafficHistory')}
       style={{ marginTop: 16 }}
       extra={
-        <Space wrap>
+        <div className="rp-chart-controls rp-traffic-chart-controls">
           {rules && rules.length > 0 && (
             <Select
               style={{ minWidth: 160 }}
@@ -103,7 +103,7 @@ export default function TrafficChart({ rules }: Props) {
               { value: '30d', label: t('range30d') },
             ]}
           />
-        </Space>
+        </div>
       }
     >
       <Spin spinning={loading}>
