@@ -14,15 +14,19 @@ const row: NodeDisplayRow = {
 afterEach(cleanup);
 
 describe('NetworkCell role-based IP visibility', () => {
-  it('shows country and IP to an administrator', () => {
-    render(<NetworkCell row={row} t={t} showIp />);
-    expect(screen.getByText('德国')).toBeInTheDocument();
+  it('shows the flag and IP to an administrator without a country name', () => {
+    const { container } = render(<NetworkCell row={row} t={t} showIp />);
+    expect(container.querySelector('.country-flag-pill .fi-de')).toBeInTheDocument();
     expect(screen.getByText('82.139.204.2')).toBeInTheDocument();
+    expect(screen.queryByText('德国')).not.toBeInTheDocument();
+    expect(screen.queryByText('Germany')).not.toBeInTheDocument();
   });
 
-  it('shows the country but never the IP to a regular user', () => {
-    render(<NetworkCell row={row} t={t} />);
-    expect(screen.getByText('德国')).toBeInTheDocument();
+  it('shows only the flag to a regular user', () => {
+    const { container } = render(<NetworkCell row={row} t={t} />);
+    expect(container.querySelector('.country-flag-pill .fi-de')).toBeInTheDocument();
     expect(screen.queryByText('82.139.204.2')).not.toBeInTheDocument();
+    expect(screen.queryByText('德国')).not.toBeInTheDocument();
+    expect(screen.queryByText('Germany')).not.toBeInTheDocument();
   });
 });

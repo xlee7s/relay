@@ -6,8 +6,8 @@ import { CountryFlag } from './CountryFlag';
 
 const { Text } = Typography;
 
-/** Dual-stack network cell. Administrators see country + IP; regular users
- *  see country only. The API also strips user-view IP fields, so showIp is a
+/** Dual-stack network cell. Administrators see flag + IP; regular users see
+ *  the flag only. The API also strips user-view IP fields, so showIp is a
  *  presentation aid rather than the privacy boundary. */
 export function NetworkCell({ row, t, showIp = false }: { row: NodeDisplayRow; t: Tfn; showIp?: boolean }) {
   const v4 = row.public_ipv4 ?? row.public_ip;
@@ -29,9 +29,6 @@ export function NetworkCell({ row, t, showIp = false }: { row: NodeDisplayRow; t
       {entries.map((item) => (
         <div key={item.key} style={{ fontSize: 12, lineHeight: '20px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <CountryFlag code={item.code} />
-          <span style={{ whiteSpace: 'nowrap' }}>
-            {item.name || item.code?.toUpperCase() || t('regionUnknown')}
-          </span>
           {showIp && item.ip ? (
             <span className="rp-mono" style={{ whiteSpace: 'nowrap' }}>{item.ip}</span>
           ) : null}
