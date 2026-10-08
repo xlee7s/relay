@@ -970,7 +970,7 @@ const IMPORT_DEFAULTS = {
     <>
       <div className="rp-page-header">
         <h2 className="rp-page-title"><ApiOutlined /> {t('forwardRules')}</h2>
-        <Space wrap>
+        <Space wrap className="rp-rule-toolbar">
           <Input
             allowClear
             prefix={<SearchOutlined />}

@@ -169,7 +169,16 @@ export default function MainLayout() {
           items={menuItems}
           // Parent entries carry a `grp-` key and no route — clicking one only
           // expands it, so navigating on them would 404.
-          onClick={({ key }) => { if (!key.startsWith('grp-')) navigate(key); }}
+          onClick={({ key }) => {
+            if (key.startsWith('grp-')) return;
+            navigate(key);
+            // On narrow screens the sider is a modal-style navigation layer.
+            // Leave the destination visible after a menu choice instead of
+            // keeping the old page dimmed beneath the navigation.
+            if (window.matchMedia('(max-width: 991px)').matches) {
+              setNavigationOpen(false);
+            }
+          }}
           className="rp-main-menu"
           style={{ borderRight: 0 }}
         />

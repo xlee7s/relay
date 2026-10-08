@@ -1456,6 +1456,17 @@ body {
     inset: 0 auto 0 0;
   }
 
+  .rp-nav-open .rp-sidebar.ant-layout-sider {
+    width: min(272px, calc(100vw - 40px)) !important;
+    max-width: calc(100vw - 40px);
+    flex: 0 0 auto !important;
+  }
+
+  .rp-app-shell,
+  .rp-main-stage {
+    overflow-x: clip;
+  }
+
   .rp-nav-open .rp-sidebar-backdrop {
     position: fixed;
     z-index: 90;
@@ -1594,6 +1605,34 @@ body {
 
   .rp-page-header > .ant-space > .ant-btn {
     width: 100%;
+  }
+
+  /* Rules has two full-width filters followed by paired actions. Ant Space
+     wraps every child in an item, so target those items rather than the
+     controls themselves; otherwise the Select stays on the first row and
+     overflows on phones. */
+  .rp-rule-toolbar.ant-space {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .rp-rule-toolbar.ant-space > .ant-space-item {
+    min-width: 0;
+  }
+
+  .rp-rule-toolbar.ant-space > .ant-space-item:nth-child(1),
+  .rp-rule-toolbar.ant-space > .ant-space-item:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  .rp-rule-toolbar .ant-input-affix-wrapper,
+  .rp-rule-toolbar .ant-select,
+  .rp-rule-toolbar .ant-btn,
+  .rp-rule-toolbar .ant-dropdown-trigger {
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
   .ant-card-head {
