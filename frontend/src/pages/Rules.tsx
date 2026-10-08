@@ -626,15 +626,15 @@ const IMPORT_DEFAULTS = {
     },
     { title: t('name'), dataIndex: 'name', key: 'name' },
     {
-      title: t('listenIp'), key: 'listen_ip', width: 160,
+      title: t('connectAddress'), key: 'connect_address', width: 220,
       render: (_: unknown, r: ForwardRule) => {
         const host = groupInfo.get(r.device_group_in)?.connect_host ?? '';
-        return host
-          ? <span className="rp-mono">{host}</span>
-          : <Text type="secondary">{t('notConfigured')}</Text>;
+        if (!host) return <Text type="secondary">{t('notConfigured')}</Text>;
+        // Bracket IPv6 so the displayed address remains unambiguous.
+        const formattedHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+        return <span className="rp-mono">{formattedHost}:{r.listen_port}</span>;
       },
     },
-    { title: t('listenPort'), dataIndex: 'listen_port', key: 'listen_port', render: (v: number) => <span className="rp-mono">{v}</span> },
     {
       title: t('protocol'), dataIndex: 'protocol', key: 'protocol',
       render: (p: string, r: ForwardRule) => (
