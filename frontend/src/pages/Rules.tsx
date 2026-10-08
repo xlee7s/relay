@@ -542,42 +542,6 @@ const IMPORT_DEFAULTS = {
     load();
   };
 
-  /** v1.2.0: restart one rule — drop its live connections and rebuild its
-   *  listeners on every node of its inbound group. The rule's paused state is
-   *  untouched; this is not a pause/resume round-trip.
-   *
-   *  `restarted` (nodes actually reached) drives the message rather than the
-   *  HTTP code: the request can succeed while restarting nothing, e.g. every
-   *  node is too old to understand the command. Reporting that as success would
-   *  hide exactly the case the user needs to act on. */
-  const handleRestart = async (r: ForwardRule) => {
-    try {
-      const res = await api.post<unknown, ApiEnvelope<RestartResponse>>(`/rules/${r.id}/restart`, {});
-      if (res.code !== 0) {
-        message.error(res.message || t('restartFailed'));
-        return;
-      }
-      const data = res.data;
-      const outdated = (data?.nodes ?? []).filter(n => n.state === 'unsupported').length;
-      const offline = (data?.nodes ?? []).filter(n => n.state === 'control_channel_offline').length;
-      if ((data?.restarted ?? 0) > 0) {
-        let msg = t('restartSuccess').replace('{count}', String(data?.restarted ?? 0));
-        if (outdated > 0) msg += ` ${t('restartOutdatedSuffix').replace('{count}', String(outdated))}`;
-        if (offline > 0) msg += ` ${t('restartOfflineSuffix').replace('{count}', String(offline))}`;
-        if (outdated > 0 || offline > 0) message.warning(msg);
-        else message.success(msg);
-      } else if (outdated > 0) {
-        message.warning(t('restartAllOutdated').replace('{count}', String(outdated)));
-      } else if (offline > 0) {
-        message.warning(t('restartAllOffline').replace('{count}', String(offline)));
-      } else {
-        message.warning(t('restartNoNodes'));
-      }
-    } catch {
-      message.error(t('restartFailed'));
-    }
-  };
-
   /** v1.2.0: batch restart. Per-rule POST like batch pause/resume — there is no
    *  bulk endpoint. A rule can fail individually (paused → 400, or not owned →
    *  404), so tally ok/fail rather than assuming Promise.all means success. */
@@ -718,7 +682,7 @@ const IMPORT_DEFAULTS = {
     },
     { title: t('traffic'), dataIndex: 'traffic_used', key: 'traffic_used', render: (v: number) => formatBytes(v) },
     {
-      title: t('action'), key: 'action', width: 260,
+      title: t('action'), key: 'action', width: 210,
       // v1.2.7: every action carries an accessible name that names its RULE.
       // The visible text alone ("编辑") is identical on every row, so tabbing
       // this table with a screen reader announced the same word once per rule
@@ -739,27 +703,6 @@ const IMPORT_DEFAULTS = {
           <Button size="small" type="text" icon={<CopyOutlined />} aria-label={`${t('copy')} ${r.name}`} onClick={() => handleCopy(r)}>{t('copy')}</Button>
           {/* v0.4.9: diagnosis is TCP-only — disable for pure-UDP rules. */}
           <Button size="small" type="text" icon={<MedicineBoxOutlined />} disabled={r.protocol === 'udp'} aria-label={`${t('diagnose')} ${r.name}`} onClick={() => handleDiagnose(r)} title={r.protocol === 'udp' ? t('diagnoseUdpUnsupported') : t('diagnose')}>{t('diagnose')}</Button>
-          {/* v1.2.0: restart drops every live connection on this rule, so it is
-              behind a confirm (diagnose is read-only and isn't). Disabled while
-              paused — there are no listeners to restart. */}
-          <Popconfirm
-            title={t('restartConfirmTitle')}
-            description={t('restartConfirmDesc')}
-            onConfirm={() => handleRestart(r)}
-            okButtonProps={{ danger: true }}
-            disabled={r.paused}
-          >
-            <Button
-              size="small"
-              type="text"
-              icon={<ThunderboltOutlined />}
-              disabled={r.paused}
-              aria-label={`${t('restart')} ${r.name}`}
-              title={r.paused ? t('restartPausedHint') : t('restart')}
-            >
-              {t('restart')}
-            </Button>
-          </Popconfirm>
           <Popconfirm title={t('deleteRuleConfirm')} onConfirm={() => handleDelete(r.id)}>
             <Button danger size="small" type="text" aria-label={`${t('delete')} ${r.name}`}>{t('delete')}</Button>
           </Popconfirm>
