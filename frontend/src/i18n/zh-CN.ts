@@ -96,8 +96,8 @@ export const zhCN = {
   // Rules page
   addRule: '新增规则',
   searchRulePlaceholder: '搜索名称 / 端口 / 目标',
-  listenIp: '监听 IP',
-  listenPort: '监听端口',
+  listenIp: '地址',
+  listenPort: '端口',
   notConfigured: '未配置',
   currentInboundHost: '当前出口分组连接地址：{host}',
   // v0.4.11 PR1: renamed from entryTransport to transportMethod
