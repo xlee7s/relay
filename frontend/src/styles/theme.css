@@ -1503,6 +1503,47 @@ body {
 }
 
 @media (max-width: 991px) {
+  /* Rules is the widest application page. Keep its controls and table as
+     contained scrollable regions so a tablet-sized emulator cannot turn the
+     entire document into a wide desktop canvas. */
+  .rp-page-header,
+  .rp-rule-toolbar.ant-space,
+  .rp-workspace > .ant-table-wrapper,
+  .rp-workspace > div > .ant-table-wrapper {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .rp-rule-toolbar.ant-space {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .rp-rule-toolbar.ant-space > .ant-space-item {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .rp-rule-toolbar.ant-space > .ant-space-item:nth-child(1),
+  .rp-rule-toolbar.ant-space > .ant-space-item:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  .rp-rule-toolbar .ant-input-affix-wrapper,
+  .rp-rule-toolbar .ant-select,
+  .rp-rule-toolbar .ant-btn,
+  .rp-rule-toolbar .ant-dropdown-trigger {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .rp-workspace > .ant-table-wrapper,
+  .rp-workspace > div > .ant-table-wrapper {
+    overflow: hidden;
+  }
+
   .rp-sidebar.ant-layout-sider {
     position: fixed;
     z-index: 100;
