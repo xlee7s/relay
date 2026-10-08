@@ -152,7 +152,9 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       render: (_: unknown, r: NodeDisplayRow) => <span className="rp-mono">{formatUptime(r.uptime, labels)}</span>,
     },
     {
-      title: t('resourceDetails'), key: 'detail',
+      // Keep the two action columns available while the metrics scroll.
+      // Ant Design requires an explicit width for a fixed column.
+      title: t('resourceDetails'), key: 'detail', width: 64, fixed: 'right' as const,
       render: (_: unknown, r: NodeDisplayRow) => (
         <Button size="small" type="link" onClick={() => openDetail(r)}>{t('resourceDetails')}</Button>
       ),
@@ -161,7 +163,7 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
 
   if (onDelete) {
     columns.push({
-      title: t('actions'), key: 'remove',
+      title: t('actions'), key: 'remove', width: 60, fixed: 'right' as const,
       render: (_: unknown, r: NodeDisplayRow) =>
         // Online rows get nothing rather than a disabled button: there is no
         // sensible action here, and a greyed-out control invites a hunt for the
