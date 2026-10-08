@@ -1430,6 +1430,33 @@ body {
   .rp-topbar-actions .ant-btn > span:not(.anticon) {
     display: none;
   }
+
+  .rp-topbar-actions {
+    display: inline-flex !important;
+    align-items: center;
+  }
+
+  .rp-topbar-actions .ant-space-item,
+  .rp-topbar-actions .ant-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .rp-topbar-actions .ant-btn .anticon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    color: #44516a !important;
+    font-size: 16px;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .rp-topbar-actions .ant-btn:hover .anticon,
+  .rp-topbar-actions .ant-btn:focus-visible .anticon {
+    color: var(--rp-primary) !important;
+  }
 }
 
 @media (max-width: 767px) {
@@ -1458,12 +1485,18 @@ body {
   }
 
   .rp-topbar-actions {
+    flex: 0 0 auto;
     gap: 0 !important;
   }
 
   .rp-topbar-actions .ant-btn {
-    width: 34px;
-    padding-inline: 7px;
+    display: inline-flex;
+    width: 32px;
+    min-width: 32px;
+    height: 34px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
   }
 
   .rp-workspace {
