@@ -311,7 +311,7 @@ export default function Users() {
     },
     { title: t('maxRules'), dataIndex: 'max_rules', key: 'max_rules', width: 90 },
     {
-      title: t('trafficUsed'), key: 'traffic', width: 200,
+      title: t('trafficUsed'), key: 'traffic', width: 220,
       render: (_: unknown, u: User) => {
         const used = u.traffic_used;
         const limit = u.traffic_limit;
@@ -331,6 +331,7 @@ export default function Users() {
               <Progress
                 percent={pct}
                 size="small"
+                showInfo={false}
                 status={overQuota ? 'exception' : 'normal'}
               />
               <span style={{ fontSize: 11 }}>
@@ -409,7 +410,15 @@ export default function Users() {
           <Button icon={<ReloadOutlined />} onClick={load}>{t('refresh')}</Button>
         </Space>
       </div>
-      <Table dataSource={filteredUsers} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 20 }} scroll={{ x: 'max-content' }} />
+      <Table
+        dataSource={filteredUsers}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 20 }}
+        tableLayout="fixed"
+        scroll={{ x: 1440 }}
+      />
 
       <Modal
         title={editing ? `${t('editUser')}: ${editing.username}` : t('editUser')}
