@@ -1427,7 +1427,10 @@ body {
     backdrop-filter: blur(3px);
   }
 
-  .rp-topbar-actions .ant-btn > span:not(.anticon) {
+  /* Ant Design 6 wraps icons in `.ant-btn-icon`. Hide only the text span;
+     hiding every non-`.anticon` span also hides that wrapper and leaves the
+     mobile action tray looking completely empty. */
+  .rp-topbar-actions .ant-btn > span:not(.ant-btn-icon):not(.anticon) {
     display: none;
   }
 
@@ -1443,6 +1446,7 @@ body {
     justify-content: center;
   }
 
+  .rp-topbar-actions .ant-btn-icon,
   .rp-topbar-actions .ant-btn .anticon {
     display: inline-flex !important;
     align-items: center;

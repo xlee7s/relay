@@ -114,7 +114,11 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       },
     }] : []),
     {
-      title: t('network'), key: 'network', width: onUpgrade ? 300 : 150,
+      // Let the network column grow with an IPv6 address but shrink to the
+      // flag when the user view contains no IP. `minWidth` works with the
+      // table's automatic layout without forcing the whole table to a fixed
+      // max-content width.
+      title: t('network'), key: 'network', minWidth: onUpgrade ? 270 : 72,
       render: (_: unknown, r: NodeDisplayRow) => <NetworkCell row={r} t={t} showIp={Boolean(onUpgrade)} />,
     },
     {
@@ -191,7 +195,8 @@ export function NodeDesktopTable({ rows, panelProtocol, latestNodeVersion, nodeV
       rowClassName={(r) => (r.online ? '' : 'rp-node-offline')}
       pagination={false}
       size="small"
-      scroll={{ x: 'max-content' }}
+      tableLayout="auto"
+      scroll={{ x: '100%' }}
     />
   );
 }
