@@ -5363,7 +5363,10 @@ async fn node_metrics_for_deleted_group_are_not_returned() {
         .query_node_metrics("2026-07-28 00:00:00", false)
         .await
         .unwrap();
-    assert!(rows.is_empty(), "deleted groups must not leave chart series");
+    assert!(
+        rows.is_empty(),
+        "deleted groups must not leave chart series"
+    );
 }
 
 // ── Audit log (v1.2.4) ──
