@@ -3417,7 +3417,9 @@ async fn buy_plan_stacks_traffic_and_charges_balance() {
 async fn buy_plan_reset_traffic_zeros_usage() {
     let db = repo().await;
     let (alice, pid) = seed_buyer_and_plan(&db, "100.00", 1_000_000, "10.00", 0, true).await;
-    sqlx::query("UPDATE users SET traffic_used = 9999 WHERE id = ?")
+    // Same-plan renewal must also replace (not add to) an existing allowance.
+    sqlx::query("UPDATE users SET plan_id = ?, traffic_limit = 7_777_777, traffic_used = 9999 WHERE id = ?")
+        .bind(pid)
         .bind(alice)
         .execute(&db.pool)
         .await
@@ -3439,12 +3441,13 @@ async fn buy_plan_reset_traffic_zeros_usage() {
     .await
     .unwrap();
 
-    let used: (i64,) = sqlx::query_as("SELECT traffic_used FROM users WHERE id = ?")
+    let (limit, used): (i64, i64) = sqlx::query_as("SELECT traffic_limit, traffic_used FROM users WHERE id = ?")
         .bind(alice)
         .fetch_one(&db.pool)
         .await
         .unwrap();
-    assert_eq!(used.0, 0, "reset_traffic must zero traffic_used");
+    assert_eq!(limit, 1_000_000, "reset_traffic must replace the same-plan allowance");
+    assert_eq!(used, 0, "reset_traffic must zero traffic_used");
 }
 
 #[tokio::test]

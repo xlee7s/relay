@@ -338,10 +338,13 @@ impl PlanRepository for SqliteRepository {
             .execute(&mut *tx)
             .await?;
         } else if reset_traffic {
-            // Renew + the plan's reset_traffic flag: stack quota, zero usage.
+            // Renew + the plan's reset_traffic flag: start a fresh quota just
+            // like switching plans. A reset must replace BOTH the allowance
+            // and its usage; otherwise a same-plan purchase still accumulates
+            // quota and behaves differently from a plan switch.
             sqlx::query(
                 "UPDATE users SET \
-                 balance = ?, traffic_limit = traffic_limit + ?, traffic_used = 0, \
+                 balance = ?, traffic_limit = ?, traffic_used = 0, \
                  max_rules = ?, plan_id = ?, plan_expire_at = ? \
                  WHERE id = ?",
             )

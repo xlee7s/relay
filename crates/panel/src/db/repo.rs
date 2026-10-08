@@ -1167,9 +1167,10 @@ pub trait PlanRepository: Send + Sync {
     /// v1.0.8: atomically purchase a plan in ONE transaction (防双花):
     ///   - lock + read the user's balance
     ///   - refuse if balance < price_cents (returns `BuyPlanError::InsufficientBalance`)
-    ///   - balance -= price_cents, traffic_limit += traffic_to_add
+    ///   - ordinary renewal: balance -= price_cents, traffic_limit += traffic_to_add
+    ///   - plan switch OR `reset_traffic`: traffic_limit = traffic_to_add and
+    ///     traffic_used = 0, so the new purchase starts with exactly its quota
     ///   - max_rules = plan_max_rules, plan_id = plan_id
-    ///   - reset traffic_used to 0 when `reset_traffic`
     ///   - plan_expire_at = max(now, current expiry) + duration_days (NULL when duration_days=0)
     ///   - insert an orders row (snapshots plan_name + price)
     ///   - v1.0.9: grant device groups in the SAME tx. v1.0.8: purchase REPLACES
