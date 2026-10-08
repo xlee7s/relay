@@ -3443,13 +3443,12 @@ async fn buy_plan_reset_traffic_zeros_usage() {
     .await
     .unwrap();
 
-    let (limit, used): (i64, i64) = sqlx::query_as(
-        "SELECT traffic_limit, traffic_used FROM users WHERE id = ?",
-    )
-    .bind(alice)
-    .fetch_one(&db.pool)
-    .await
-    .unwrap();
+    let (limit, used): (i64, i64) =
+        sqlx::query_as("SELECT traffic_limit, traffic_used FROM users WHERE id = ?")
+            .bind(alice)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
     assert_eq!(
         limit, 1_000_000,
         "reset_traffic must replace the same-plan allowance"
