@@ -1575,6 +1575,31 @@ body {
     --rp-content-padding: 10px;
   }
 
+  /* Device emulation can be narrower than the old 320px desktop safeguard.
+     Every layout ancestor must be allowed to shrink, otherwise Chrome renders
+     a wide desktop canvas and the emulator only shows its left slice. */
+  html,
+  body,
+  #root,
+  .rp-app-shell,
+  .rp-main-stage,
+  .rp-content.ant-layout-content,
+  .rp-content-inner {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .rp-app-shell,
+  .rp-main-stage,
+  .rp-content.ant-layout-content {
+    flex: 1 1 auto;
+  }
+
   .rp-topbar.ant-layout-header {
     padding-inline: 10px;
     gap: 8px;
