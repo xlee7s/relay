@@ -334,7 +334,7 @@ export default function Users() {
                 showInfo={false}
                 status={overQuota ? 'exception' : 'normal'}
               />
-              <span style={{ fontSize: 11 }}>
+              <span className="rp-user-traffic-value">
                 {formatBytes(used)}
                 {' / '}
                 {unlimited ? t('unlimited') : formatBytes(limit)}
