@@ -247,7 +247,7 @@ export default function Account() {
           not duplicated here; it stays on the shop page. */}
       <RedeemHistory />
 
-      {!me.admin && <TrafficChart />}
+      <TrafficChart userId={me.id} />
 
       <Modal
         title={t('changePassword')}

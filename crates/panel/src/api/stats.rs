@@ -124,6 +124,10 @@ pub struct TrafficHistoryQuery {
     /// Optional drill-down to one rule.
     #[serde(default)]
     pub rule_id: Option<i64>,
+    /// Optional user scope for an administrator's personal history view.
+    /// Ignored for regular users, whose queries are always scoped to themselves.
+    #[serde(default)]
+    pub uid: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -136,12 +140,13 @@ pub struct TrafficHistoryResponse {
     pub buckets: Vec<crate::db::repo::TrafficHistoryBucket>,
 }
 
-/// GET /api/v1/stats/traffic?range=1d|7d|30d[&rule_id=N]
+/// GET /api/v1/stats/traffic?range=1d|7d|30d[&rule_id=N][&uid=N]
 ///
 /// Owner-scoped: a regular user's query is FORCED to `uid = caller` regardless
 /// of what they pass — a foreign rule_id then simply matches nothing, which
 /// also means the endpoint can't be used to probe whether a rule id exists.
-/// Admins see everything.
+/// An administrator sees everything by default, or one user's history when
+/// `uid` is supplied (used by the administrator's personal-center page).
 ///
 /// ALWAYS returns hourly buckets, even for 7d/30d (≤ 720 rows — trivial). Day
 /// grouping happens client-side in the VIEWER'S timezone: buckets are stored
@@ -168,9 +173,10 @@ pub async fn get_traffic_history(
     let since = (chrono::Utc::now() - chrono::Duration::days(days))
         .format("%Y-%m-%d %H:00:00")
         .to_string();
-    // The scope decision, in one place: admin = unrestricted, everyone else =
-    // pinned to their own uid. The repo layer trusts this argument.
-    let uid = if user.admin { None } else { Some(user.user_id) };
+    // The scope decision, in one place: admins may optionally request one
+    // user's history; everyone else is pinned to their own uid. The repo layer
+    // trusts this argument.
+    let uid = if user.admin { q.uid } else { Some(user.user_id) };
 
     match state
         .db

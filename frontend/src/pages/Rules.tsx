@@ -670,16 +670,6 @@ const IMPORT_DEFAULTS = {
         );
       },
     },
-    {
-      // v0.4.14 PR3: owner is the rule's OWN uid — NOT the inbound group's uid.
-      // An admin can create a rule on behalf of a user, and a regular user can
-      // attach to an admin-owned shared group, so the rule owner and the group
-      // owner often differ. Resolve the username from the rule's uid; fall back
-      // to "#uid" when the user list isn't available.
-      title: t('owner'), key: 'owner', width: 100,
-      render: (_: unknown, r: ForwardRule) =>
-        <Text>{userMap.get(r.uid) ?? `#${r.uid}`}</Text>,
-    },
     { title: t('traffic'), dataIndex: 'traffic_used', key: 'traffic_used', render: (v: number) => formatBytes(v) },
     {
       title: t('action'), key: 'action', width: 210,
@@ -710,10 +700,10 @@ const IMPORT_DEFAULTS = {
       ),
     },
   ];
-  // v0.4.10: hide the owner column for regular users — they only ever own
-  // their own rules, and /admin/users is never fetched for them (so userMap
-  // is empty and the column would show "-" everywhere).
-  const columns = isAdmin ? allColumns : allColumns.filter(c => c.key !== 'owner');
+  // Rules are already scoped by the current page (including an administrator
+  // viewing another user's rules), so the owner is intentionally not repeated
+  // as a table column.
+  const columns = allColumns;
 
   const inGroups = groups.filter(g => g.group_type === 'in');
   // v0.4.12 PR1: inbound group selection. Admins pick from their OWN 'in'

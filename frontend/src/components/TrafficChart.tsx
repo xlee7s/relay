@@ -16,8 +16,11 @@ type ChartPoint = TrafficPoint & { groupLabel: string };
 
 interface Props {
   /** Rules for the admin drill-down Select. Omit to hide the filter (the
-   *  Account page: the API pins non-admins to their own uid anyway). */
+   *  Account page passes userId to load the signed-in user's history). */
   rules?: { id: number; name: string }[];
+  /** User scope for an administrator's personal-center history. Regular-user
+   *  requests remain server-side scoped to the signed-in account. */
+  userId?: number;
 }
 
 /**
@@ -32,7 +35,7 @@ interface Props {
  * timezone — a server-side UTC day starts at 08:00 for a CST viewer and would
  * misfile "yesterday's" traffic.
  */
-export default function TrafficChart({ rules }: Props) {
+export default function TrafficChart({ rules, userId }: Props) {
   const { t } = useI18n();
   const [range, setRange] = useState<Range>('7d');
   const [ruleId, setRuleId] = useState<number | undefined>(undefined);
@@ -44,6 +47,7 @@ export default function TrafficChart({ rules }: Props) {
     try {
       const qs = new URLSearchParams({ range });
       if (ruleId !== undefined) qs.set('rule_id', String(ruleId));
+      if (userId !== undefined) qs.set('uid', String(userId));
       const res = await api.get<unknown, ApiEnvelope<TrafficHistoryResponse>>(
         `/stats/traffic?${qs}`,
       );
@@ -57,7 +61,7 @@ export default function TrafficChart({ rules }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [range, ruleId, t]);
+  }, [range, ruleId, t, userId]);
 
   useEffect(() => { load(); }, [load]);
 
