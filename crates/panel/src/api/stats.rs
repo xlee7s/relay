@@ -176,7 +176,11 @@ pub async fn get_traffic_history(
     // The scope decision, in one place: admins may optionally request one
     // user's history; everyone else is pinned to their own uid. The repo layer
     // trusts this argument.
-    let uid = if user.admin { q.uid } else { Some(user.user_id) };
+    let uid = if user.admin {
+        q.uid
+    } else {
+        Some(user.user_id)
+    };
 
     match state
         .db
