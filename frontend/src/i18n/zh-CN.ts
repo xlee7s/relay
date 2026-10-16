@@ -559,6 +559,11 @@ export const zhCN = {
   batchResumeSuccess: '已启动 {count} 条规则',
   batchPauseSuccess: '已暂停 {count} 条规则',
   batchPartial: '成功 {ok} 条，失败 {fail} 条（无权限的线路无法启动）',
+  batchSwitchInbound: '批量切换入口',
+  batchSwitchTarget: '选择目标入口',
+  batchSwitchInboundHint: '将选中的 {count} 条规则切换到同一个入口。入口权限与端口冲突会在保存时逐条校验。',
+  batchSwitchInboundSuccess: '已切换 {count} 条规则的入口',
+  batchSwitchInboundPartial: '成功切换 {ok} 条，失败 {fail} 条（请检查入口权限或端口冲突）',
   selectedCount: '已选 {count} 条',
 
   // ── v1.2.0: 流量历史 ──

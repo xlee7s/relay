@@ -1,6 +1,6 @@
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, message, Popconfirm, Tag, Alert, Typography, Dropdown, Switch, Tabs, Spin, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
-import { PlusOutlined, ReloadOutlined, EditOutlined, ApiOutlined, CopyOutlined, DownloadOutlined, UploadOutlined, PauseCircleOutlined, PlayCircleOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, MedicineBoxOutlined, QuestionCircleOutlined, ThunderboltOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, EditOutlined, ApiOutlined, CopyOutlined, DownloadOutlined, UploadOutlined, PauseCircleOutlined, PlayCircleOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, MedicineBoxOutlined, QuestionCircleOutlined, ThunderboltOutlined, SearchOutlined, SwapOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
@@ -125,6 +125,9 @@ export default function Rules() {
   }, [setSearchParams]);
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [batchSwitchOpen, setBatchSwitchOpen] = useState(false);
+  const [batchSwitchGroupId, setBatchSwitchGroupId] = useState<number | undefined>(undefined);
+  const [batchSwitching, setBatchSwitching] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -542,6 +545,44 @@ const IMPORT_DEFAULTS = {
     load();
   };
 
+  /** Move every selected rule to one authorized inbound group. The existing
+   *  per-rule endpoint remains the authority for access and port-conflict
+   *  checks, so one rejected rule does not roll back the successful ones. */
+  const handleBatchSwitchInbound = async () => {
+    if (batchSwitchGroupId === undefined) return;
+    const selected = rules.filter(r => selectedRowKeys.includes(r.id));
+    if (selected.length === 0) return;
+    setBatchSwitching(true);
+    try {
+      const results = await Promise.all(selected.map(async rule => {
+        if (rule.device_group_in === batchSwitchGroupId) return true;
+        try {
+          const res = await api.put<unknown, ApiEnvelope<null>>(`/rules/${rule.id}`, {
+            device_group_in: batchSwitchGroupId,
+          });
+          return res.code === 0;
+        } catch {
+          return false;
+        }
+      }));
+      const ok = results.filter(Boolean).length;
+      const fail = results.length - ok;
+      if (fail === 0) {
+        message.success(t('batchSwitchInboundSuccess').replace('{count}', String(ok)));
+      } else {
+        message.warning(
+          t('batchSwitchInboundPartial').replace('{ok}', String(ok)).replace('{fail}', String(fail)),
+        );
+      }
+      setBatchSwitchOpen(false);
+      setBatchSwitchGroupId(undefined);
+      setSelectedRowKeys([]);
+      load();
+    } finally {
+      setBatchSwitching(false);
+    }
+  };
+
   /** v1.2.0: batch restart. Per-rule POST like batch pause/resume — there is no
    *  bulk endpoint. A rule can fail individually (paused → 400, or not owned →
    *  404), so tally ok/fail rather than assuming Promise.all means success. */
@@ -936,6 +977,15 @@ const IMPORT_DEFAULTS = {
             </Button>
           )}
           {selectedRowKeys.length > 0 && (
+            <Button
+              icon={<SwapOutlined />}
+              disabled={allInGroups.length === 0 || (!isAdmin && sharedLoadFailed)}
+              onClick={() => { setBatchSwitchGroupId(undefined); setBatchSwitchOpen(true); }}
+            >
+              {t('batchSwitchInbound')} ({selectedRowKeys.length})
+            </Button>
+          )}
+          {selectedRowKeys.length > 0 && (
             <Button icon={<PlayCircleOutlined />} onClick={() => handleBatchSetPaused(false)}>
               {t('batchResume')} ({selectedRowKeys.length})
             </Button>
@@ -1007,6 +1057,35 @@ const IMPORT_DEFAULTS = {
         dataSource={visibleRules} columns={columns} rowKey="id" loading={loading}
         pagination={{ pageSize: 20 }} scroll={{ x: 1200 }}
       />
+
+      <Modal
+        title={t('batchSwitchInbound')}
+        open={batchSwitchOpen}
+        onCancel={() => { setBatchSwitchOpen(false); setBatchSwitchGroupId(undefined); }}
+        onOk={handleBatchSwitchInbound}
+        okText={t('save')}
+        cancelText={t('cancel')}
+        confirmLoading={batchSwitching}
+        okButtonProps={{ disabled: batchSwitchGroupId === undefined }}
+        destroyOnHidden
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          title={t('batchSwitchInboundHint').replace('{count}', String(selectedRowKeys.length))}
+        />
+        <Select
+          aria-label={t('batchSwitchTarget')}
+          placeholder={t('batchSwitchTarget')}
+          value={batchSwitchGroupId}
+          onChange={setBatchSwitchGroupId}
+          options={allInGroups.map(g => ({ value: g.id, label: g.name }))}
+          showSearch
+          optionFilterProp="label"
+          style={{ width: '100%' }}
+        />
+      </Modal>
 
       <Modal title={t('addRule')} open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} okText={t('create')} cancelText={t('cancel')} width={620}>
         <Form form={createForm} onFinish={handleCreate} layout="vertical" className="rp-rule-form">

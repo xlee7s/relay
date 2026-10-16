@@ -3,9 +3,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 
-const { mockGet } = vi.hoisted(() => ({ mockGet: vi.fn() }));
+const { mockGet, mockPut } = vi.hoisted(() => ({ mockGet: vi.fn(), mockPut: vi.fn() }));
 vi.mock('../api/client', () => ({
-  default: { get: mockGet, post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  default: { get: mockGet, post: vi.fn(), put: mockPut, delete: vi.fn() },
 }));
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock('../auth/useAuth', () => ({ useAuth: mockUseAuth }));
@@ -55,12 +55,89 @@ function routes({ rules, groups }: { rules?: unknown; groups?: unknown }) {
 
 beforeEach(() => {
   mockGet.mockReset();
+  mockPut.mockReset();
+  mockPut.mockResolvedValue(ok(null));
   mockUseAuth.mockReset();
   mockUseAuth.mockReturnValue({ isAdmin: true, user: { id: 1, username: 'admin' } });
   // Default: two rules on two different groups, both reads healthy.
   routes({
     rules: ok([rule(), rule({ id: 2, name: 'jp-game', listen_port: 10002, device_group_in: 8 })]),
     groups: ok([group(), group({ id: 8, name: 'jp-line' })]),
+  });
+});
+
+describe('batch inbound switching', () => {
+  it('offers every inbound group to an administrator', async () => {
+    routes({
+      rules: ok([
+        rule(),
+        rule({ id: 2, name: 'jp-game', listen_port: 10002, device_group_in: 8 }),
+      ]),
+      groups: ok([
+        group(),
+        group({ id: 8, name: 'jp-line' }),
+        group({ id: 9, name: 'us-line' }),
+      ]),
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('hk-web');
+    await user.click(screen.getAllByRole('checkbox')[0]);
+    await user.click(screen.getByRole('button', { name: /batchSwitchInbound/ }));
+    await user.click(screen.getByLabelText('batchSwitchTarget'));
+
+    expect(await screen.findByTitle('hk-line')).toBeInTheDocument();
+    expect(screen.getByTitle('jp-line')).toBeInTheDocument();
+    expect(screen.getByTitle('us-line')).toBeInTheDocument();
+    await user.click(screen.getByTitle('us-line'));
+    await user.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => {
+      expect(mockPut).toHaveBeenCalledTimes(2);
+      expect(mockPut).toHaveBeenCalledWith('/rules/1', { device_group_in: 9 });
+      expect(mockPut).toHaveBeenCalledWith('/rules/2', { device_group_in: 9 });
+    });
+  });
+
+  it('offers every authorized inbound and switches all selected rules', async () => {
+    mockUseAuth.mockReturnValue({ isAdmin: false, user: { id: 2, username: 'user' } });
+    mockGet.mockImplementation((url: string) => {
+      if (url.startsWith('/rules')) {
+        return Promise.resolve(ok([
+          rule({ uid: 2 }),
+          rule({ id: 2, uid: 2, name: 'jp-game', listen_port: 10002 }),
+        ]));
+      }
+      if (url === '/groups') return Promise.resolve(ok([]));
+      if (url === '/groups/shared') {
+        return Promise.resolve(ok([
+          group(),
+          group({ id: 9, name: 'us-line' }),
+        ]));
+      }
+      return Promise.resolve(ok({ traffic_used: 0, traffic_limit: 0 }));
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('hk-web');
+    await user.click(screen.getAllByRole('checkbox')[0]);
+    await user.click(screen.getByRole('button', { name: /batchSwitchInbound/ }));
+
+    const target = screen.getByLabelText('batchSwitchTarget');
+    await user.click(target);
+    expect(await screen.findByTitle('hk-line')).toBeInTheDocument();
+    expect(screen.getByTitle('us-line')).toBeInTheDocument();
+    expect(screen.queryByTitle('jp-line')).toBeNull();
+    await user.click(screen.getByTitle('us-line'));
+    await user.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => {
+      expect(mockPut).toHaveBeenCalledTimes(2);
+      expect(mockPut).toHaveBeenCalledWith('/rules/1', { device_group_in: 9 });
+      expect(mockPut).toHaveBeenCalledWith('/rules/2', { device_group_in: 9 });
+    });
   });
 });
 
