@@ -1206,6 +1206,8 @@ body {
 .rp-page-header {
   display: grid;
   grid-template-columns: minmax(210px, 1fr) minmax(0, auto);
+  width: calc(100% + 48px);
+  max-width: none;
   min-height: 76px;
   margin: -24px -24px 22px;
   padding: 17px 22px;
@@ -1589,6 +1591,7 @@ body {
   }
 
   .rp-page-header {
+    width: calc(100% + 40px);
     grid-template-columns: 1fr;
     align-items: stretch;
   }
@@ -1602,7 +1605,10 @@ body {
   /* Rules is the widest application page. Keep its controls and table as
      contained scrollable regions so a tablet-sized emulator cannot turn the
      entire document into a wide desktop canvas. */
-  .rp-page-header,
+  .rp-page-header {
+    min-width: 0;
+  }
+
   .rp-rule-toolbar.ant-space,
   .rp-workspace > .ant-table-wrapper,
   .rp-workspace > div > .ant-table-wrapper {
@@ -1788,6 +1794,7 @@ body {
 
   .rp-page-header {
     display: flex;
+    width: calc(100% + 28px);
     min-height: 0;
     flex-direction: column;
     gap: 13px;
