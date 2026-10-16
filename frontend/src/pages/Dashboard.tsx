@@ -305,16 +305,18 @@ export default function Dashboard() {
             </Space>
           )}
         </h2>
-        <Tooltip title={t('checkUpdate')}>
-          <Button
-            className="rp-check-update-button"
-            icon={<ReloadOutlined />}
-            loading={versionRefreshing}
-            onClick={() => checkVersion(true)}
-          >
-            {t('checkUpdate')}
-          </Button>
-        </Tooltip>
+        <div className="rp-check-update-action">
+          <Tooltip title={t('checkUpdate')}>
+            <Button
+              className="rp-check-update-button"
+              icon={<ReloadOutlined />}
+              loading={versionRefreshing}
+              onClick={() => checkVersion(true)}
+            >
+              {t('checkUpdate')}
+            </Button>
+          </Tooltip>
+        </div>
       </div>
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} sm={8}>

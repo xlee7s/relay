@@ -1220,13 +1220,22 @@ body {
   justify-content: flex-end;
 }
 
-/* Keep the update action optically centered regardless of Ant Design's
-   responsive button layout or a loading-icon swap. */
+/* Give the dashboard update action its own centering container.  This avoids
+   the button inheriting an off-centre grid position when the page header
+   switches between desktop, tablet and mobile layouts. */
+.rp-check-update-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+}
+
 .rp-check-update-button.ant-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  margin-inline: auto;
   text-align: center;
 }
 
@@ -1811,9 +1820,13 @@ body {
     grid-column: 1 / -1;
   }
 
+  .rp-check-update-action {
+    align-self: center;
+    justify-self: center;
+  }
+
   .rp-check-update-button.ant-btn {
     width: 100%;
-    justify-self: center;
   }
 
   .rp-page-header > .ant-space > .ant-btn {
