@@ -1,5 +1,5 @@
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, message, Popconfirm, Typography, Tag, Tooltip, Alert, Switch } from 'antd';
-import { PlusOutlined, ReloadOutlined, CopyOutlined, EditOutlined, CloudServerOutlined, CodeOutlined, ApiOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, CopyOutlined, EditOutlined, ClusterOutlined, CodeOutlined, ApiOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import api from '../api/client';
 import type { ApiEnvelope, DeviceGroup, User, NodeStatus } from '../api/types';
@@ -423,7 +423,7 @@ export default function Groups() {
   return (
     <>
       <div className="rp-page-header">
-        <h2 className="rp-page-title"><CloudServerOutlined /> {t('deviceGroups')}</h2>
+        <h2 className="rp-page-title"><ClusterOutlined /> {t('deviceGroups')}</h2>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load}>{t('refresh')}</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>{t('addGroup')}</Button>
