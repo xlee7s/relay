@@ -5,6 +5,7 @@ import {
   DashboardOutlined,
   ApiOutlined,
   CloudServerOutlined,
+  ClusterOutlined,
   UserOutlined,
   LogoutOutlined,
   LockOutlined,
@@ -14,6 +15,7 @@ import {
   NotificationOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import { useI18n } from '../i18n/context';
 import api from '../api/client';
@@ -72,7 +74,7 @@ export default function MainLayout() {
     { key: '/audit-log', label: t('auditLog') },
   ];
   const adminOnlyItems = [
-    { key: '/groups', icon: <CloudServerOutlined />, label: t('deviceGroups') },
+    { key: '/groups', icon: <ClusterOutlined />, label: t('deviceGroups') },
     {
       key: 'grp-billing',
       icon: <TeamOutlined />,
@@ -85,6 +87,7 @@ export default function MainLayout() {
       label: t('systemSettings'),
       children: systemChildren,
     },
+    { key: '/documentation', icon: <BookOutlined />, label: t('documentation') },
   ];
   const menuItems = isAdmin
     ? [dashboardItem, ...sharedItems, ...adminOnlyItems]
@@ -106,6 +109,7 @@ export default function MainLayout() {
     '/announcement-admin': t('announcementAdmin'),
     '/announcements': t('announcements'),
     '/audit-log': t('auditLog'),
+    '/documentation': t('documentation'),
   };
   const activePageLabel = routeLabels[location.pathname] || site.site_name || t('brand');
 

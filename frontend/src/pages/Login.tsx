@@ -96,16 +96,6 @@ export default function Login() {
             </Button>
           </div>
         )}
-        <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <a
-            href="https://github.com/xlee7s/relay"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: 12, color: 'var(--rp-text-tertiary)' }}
-          >
-            {t('sourceCode')}
-          </a>
-        </div>
       </Card>
     </div>
   );

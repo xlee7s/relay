@@ -16,7 +16,6 @@ export const zhCN = {
   // default admin/admin123 credentials to every visitor. First-install
   // instructions live in README / deploy docs only.
   changeDefaultPasswordWarning: '首次登录后请立即修改默认密码（右上角用户菜单 → 修改密码），否则任何能访问面板的人都可以使用默认凭据登录。',
-  sourceCode: 'Source Code / Apache-2.0',
 
   // Nav
   dashboard: '仪表盘',
@@ -510,6 +509,8 @@ export const zhCN = {
   registrationStatusFailed: '无法获取注册状态，请检查网络后重试。',
   retry: '重试',
   systemSettings: '系统设置',
+  documentation: '使用文档',
+  documentationUnavailable: '暂时无法读取安装文档。',
   basicSettings: '基础设置',
   userAndBilling: '用户与计费',
   registrationEnabled: '开放注册',

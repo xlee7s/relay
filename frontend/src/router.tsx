@@ -34,6 +34,7 @@ const NotifySettings = lazy(() => import('./pages/NotifySettings'));
 const Announcements = lazy(() => import('./pages/Announcements'));
 const AnnouncementAdmin = lazy(() => import('./pages/AnnouncementAdmin'));
 const Shop = lazy(() => import('./pages/Shop'));
+const Documentation = lazy(() => import('./pages/Documentation'));
 const Forbidden = lazy(() => import('./pages/Forbidden'));
 const RoleHome = lazy(() => import('./RoleHome'));
 
@@ -97,6 +98,8 @@ export const router = createBrowserRouter([
       // management page is admin-only.
       { path: 'announcements', element: <Announcements /> },
       { path: 'announcement-admin', element: <RequireAdmin><AnnouncementAdmin /></RequireAdmin> },
+      // Deployment guide sourced from README.md; intentionally admin-only.
+      { path: 'documentation', element: <RequireAdmin><Documentation /></RequireAdmin> },
       // Account is open to every authenticated user (admin or not).
       { path: 'account', element: <Account /> },
       // v0.4.10: explicit 403 page for admin-only routes a regular user
