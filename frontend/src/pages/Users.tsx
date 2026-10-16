@@ -284,24 +284,24 @@ export default function Users() {
   };
 
   const columns = [
-    { title: t('id'), dataIndex: 'id', key: 'id' },
+    { title: t('id'), dataIndex: 'id', key: 'id', width: 60 },
     { title: t('username'), dataIndex: 'username', key: 'username' },
     {
-      title: t('role'), dataIndex: 'admin', key: 'admin',
+      title: t('role'), dataIndex: 'admin', key: 'admin', width: 80,
       render: (a: boolean) => a ? <Tag color="gold">{t('admin')}</Tag> : <Tag>{t('user')}</Tag>,
     },
     {
       // v1.0.8: three-state status — banned (red) > suspended (orange) > active (green).
-      title: t('status'), key: 'status',
+      title: t('status'), key: 'status', width: 80,
       render: (_: unknown, u: User) => {
         if (u.banned) return <Tag color="red">{t('banned')}</Tag>;
         if (u.suspended) return <Tag color="orange">{t('suspended')}</Tag>;
         return <Tag color="green">{t('active')}</Tag>;
       },
     },
-    { title: t('balance'), dataIndex: 'balance', key: 'balance' },
+    { title: t('balance'), dataIndex: 'balance', key: 'balance', width: 90 },
     {
-      title: t('deviceGroupAccess'), dataIndex: 'all_device_groups', key: 'all_device_groups',
+      title: t('deviceGroupAccess'), dataIndex: 'all_device_groups', key: 'all_device_groups', width: 110,
       render: (all: boolean, u: User) => {
         if (u.admin) return <Tag color="gold">{t('accessAll')}</Tag>;
         return all
@@ -309,9 +309,9 @@ export default function Users() {
           : <Tag color="blue">{t('accessLimited')}</Tag>;
       },
     },
-    { title: t('maxRules'), dataIndex: 'max_rules', key: 'max_rules' },
+    { title: t('maxRules'), dataIndex: 'max_rules', key: 'max_rules', width: 90 },
     {
-      title: t('trafficUsed'), key: 'traffic',
+      title: t('trafficUsed'), key: 'traffic', width: 220,
       render: (_: unknown, u: User) => {
         const used = u.traffic_used;
         const limit = u.traffic_limit;
@@ -346,18 +346,18 @@ export default function Users() {
       },
     },
     {
-      title: t('joined'), dataIndex: 'created_at', key: 'created_at',
+      title: t('joined'), dataIndex: 'created_at', key: 'created_at', width: 180,
       render: (v: string) => formatChinaTime(v),
     },
     {
       // v0.4.20: standalone "Rule Management" column for admin user-rule management.
-      title: t('manageRulesColumn'), key: 'manageRules',
+      title: t('manageRulesColumn'), key: 'manageRules', width: 90,
       render: (_: unknown, u: User) => (
         <Button icon={<ApiOutlined />} size="small" type="text" onClick={() => navigate(`/rules?owner_uid=${u.id}`)}>{t('manageRules')}</Button>
       ),
     },
     {
-      title: t('action'), key: 'action',
+      title: t('action'), key: 'action', width: 390,
       render: (_: unknown, u: User) => (
         <Space size="small">
           <Button icon={<EditOutlined />} size="small" type="text" onClick={() => openEdit(u)}>{t('edit')}</Button>
