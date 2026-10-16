@@ -1,4 +1,4 @@
-import { Layout, Menu, Button, Space, Modal, Form, Input, message, Spin, Badge, Tooltip, Avatar } from 'antd';
+import { Layout, Menu, Button, Space, Modal, Form, Input, message, Spin, Badge, Avatar } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, Suspense } from 'react';
 import {
@@ -12,7 +12,6 @@ import {
   ShoppingOutlined,
   TeamOutlined,
   NotificationOutlined,
-  GithubOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
 } from '@ant-design/icons';
@@ -229,20 +228,6 @@ export default function MainLayout() {
             <Button type="text" size="small" icon={<LockOutlined />} onClick={() => setChangePwOpen(true)}>
               {t('changePassword')}
             </Button>
-            {/* Icon-only by request, unlike the labelled controls beside it, so
-                the tooltip and aria-label carry the name. The login page already
-                links the same repository to everyone. */}
-            <Tooltip title="GitHub">
-              <Button
-                type="text"
-                size="small"
-                icon={<GithubOutlined />}
-                href="https://github.com/xlee7s/relay"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="GitHub"
-              />
-            </Tooltip>
             <Button type="text" size="small" icon={<LogoutOutlined />} onClick={logout}>
               {t('logout')}
             </Button>
