@@ -1315,6 +1315,13 @@ body {
   white-space: pre;
 }
 
+/* Auto-sized user columns should still occupy the full card like the plans
+   table. When their natural width exceeds the card, max-content scrolling on
+   the Table takes over without squeezing the actions. */
+.rp-users-table .ant-table-content > table {
+  min-width: 100%;
+}
+
 /* Data and form sections have deliberate spacing and boundaries. */
 .rp-workspace > .ant-table-wrapper,
 .rp-workspace > div > .ant-table-wrapper {

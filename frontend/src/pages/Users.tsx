@@ -411,6 +411,7 @@ export default function Users() {
         </Space>
       </div>
       <Table
+        className="rp-users-table"
         dataSource={filteredUsers}
         columns={columns}
         rowKey="id"
