@@ -307,6 +307,7 @@ export default function Dashboard() {
         </h2>
         <Tooltip title={t('checkUpdate')}>
           <Button
+            className="rp-check-update-button"
             icon={<ReloadOutlined />}
             loading={versionRefreshing}
             onClick={() => checkVersion(true)}
