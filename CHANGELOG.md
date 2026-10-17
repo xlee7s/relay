@@ -8,6 +8,38 @@ independent `v*` / `node-v*` tracks since this release).
 
 ---
 
+## [1.2.13] - 2026-10-17
+
+Ships alongside `node-v1.2.7`; the panel and node remain independently
+upgradable, and the configuration protocol is unchanged.
+
+### Added
+
+- Administrators can batch-switch selected forwarding rules to any inbound
+  device group they are authorized to use; ordinary users only see their
+  explicitly permitted groups.
+- Added an administrator documentation page sourced from the deployment
+  section of `README.md`.
+- Added administrator personal traffic-history reporting.
+
+### Changed
+
+- Refined the desktop and mobile navigation, page-title icons, dashboard
+  charts, rule filters, node tables, user table and documentation layout.
+- Device-group and connection-address labels are shorter and clearer, and the
+  GitHub shortcut is no longer shown in the top navigation.
+- Timestamps are displayed consistently in China Standard Time.
+
+### Fixed
+
+- Centred and aligned the dashboard update action on desktop and mobile,
+  including its surrounding separator and header edges.
+- Fixed narrow-screen overflow, clipped mobile actions, overlapping traffic
+  columns and table columns that did not size correctly for their content.
+- Fixed traffic reset renewals so quota replacement and time-plan expiry are
+  applied correctly.
+- Fixed group-aware rule filtering and retained deleted-group traffic metrics.
+
 ## [1.2.12] - 2026-10-04
 
 Ships alongside `node-v1.2.6`; neither requires the other, and the config
