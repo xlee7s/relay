@@ -8,6 +8,17 @@ independent `v*` / `node-v*` tracks since this release).
 
 ---
 
+## [1.2.14] - 2026-10-19
+
+Panel-only security and privacy update. The relay node remains at
+`node-v1.2.7`; the node protocol is unchanged.
+
+### Security
+
+- Rule diagnosis responses no longer expose relay-node public IP addresses to
+  administrators or ordinary users. The diagnosis view now identifies each
+  node location with a country flag derived from its GeoIP country code.
+
 ## [1.2.13] - 2026-10-17
 
 Ships alongside `node-v1.2.7`; the panel and node remain independently

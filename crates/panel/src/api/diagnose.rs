@@ -188,38 +188,36 @@ fn uuid_v4_str() -> String {
 pub enum NodeDiagnoseStatus {
     /// The node replied with a DiagnoseResult.
     ///
-    /// v0.4.15: group_name + public_ip are PANEL-supplied display fields (from
+    /// group_name + country_code are PANEL-supplied display fields (from
     /// kvs/the group), NOT part of the node's diagnose wire message — the
     /// DiagnoseResult protocol is unchanged. Flattened so the result fields stay
     /// inline on the wire (frontend reads them flat).
     Result {
         group_name: String,
-        public_ip: Option<String>,
+        country_code: Option<String>,
         #[serde(flatten)]
         result: DiagnoseResult,
     },
     /// Node version < 0.4.14 — has no X-Node-ID, so it can't be targeted by
     /// directed diagnosis even with a healthy socket. Surfaced as
-    /// "节点版本过旧，请升级". v0.4.15: carries group_name/public_ip for display.
+    /// "节点版本过旧，请升级". Carries a privacy-safe country code for display.
     Unsupported {
         node_id: String,
         node_version: String,
         group_name: String,
-        public_ip: Option<String>,
+        country_code: Option<String>,
     },
-    /// Node is recent enough but its WS control channel is offline. v0.4.15:
-    /// carries group_name/public_ip for display.
+    /// Node is recent enough but its WS control channel is offline.
     ControlChannelOffline {
         node_id: String,
         group_name: String,
-        public_ip: Option<String>,
+        country_code: Option<String>,
     },
-    /// Probe was sent but no reply within the deadline. v0.4.15: carries
-    /// group_name/public_ip for display.
+    /// Probe was sent but no reply within the deadline.
     Timeout {
         node_id: String,
         group_name: String,
-        public_ip: Option<String>,
+        country_code: Option<String>,
     },
 }
 
@@ -231,8 +229,8 @@ pub struct DiagnoseResponse {
 }
 
 /// A node's status row from kvs, parsed for diagnosis scheduling. v0.4.15:
-/// carries group_name + public_ip so each NodeDiagnoseStatus can show
-/// "分组名 · 公网IP" without exposing the raw node_id as the label.
+/// carries group_name + country_code so each NodeDiagnoseStatus can show a
+/// privacy-safe country flag without exposing the node's public IP.
 /// v1.2.0: `pub(crate)` so `api::restart` can reuse the same node enumeration.
 /// Restart and diagnose both need "the nodes of this rule's inbound group, with
 /// their versions", and duplicating that logic would let the two drift apart on
@@ -240,7 +238,10 @@ pub struct DiagnoseResponse {
 pub(crate) struct NodeStatusRow {
     pub(crate) node_id: String,
     pub(crate) node_version: Option<String>,
+    /// Kept internal because the restart endpoint still uses it. Diagnosis
+    /// responses must never serialize this value.
     pub(crate) public_ip: Option<String>,
+    pub(crate) country_code: Option<String>,
     pub(crate) group_name: String,
 }
 
@@ -347,7 +348,7 @@ pub async fn diagnose_rule(
     };
 
     // 2. Enumerate the group's nodes from kvs (for node_version + node_id +
-    //    public_ip; group_name is passed in for display).
+    //    country_code; group_name is passed in for display).
     let nodes = match group_node_statuses(&state, group_id, group_name.clone()).await {
         Ok(n) => n,
         Err(e) => {
@@ -428,7 +429,7 @@ pub async fn diagnose_rule(
     ))
     .unwrap_or_default();
     let mut expected: Vec<String> = Vec::new();
-    // Index nodes by node_id so the send loop can carry group_name/public_ip
+    // Index nodes by node_id so the send loop can carry group_name/country_code
     // onto any reclassified ControlChannelOffline (the candidates vec only
     // holds node_id strings).
     let node_by_id: std::collections::HashMap<&str, &NodeStatusRow> =
@@ -442,7 +443,7 @@ pub async fn diagnose_rule(
             offline.push(NodeDiagnoseStatus::ControlChannelOffline {
                 node_id: nid.clone(),
                 group_name: row.map(|r| r.group_name.clone()).unwrap_or_default(),
-                public_ip: row.and_then(|r| r.public_ip.clone()),
+                country_code: row.and_then(|r| r.country_code.clone()),
             });
         }
     }
@@ -493,7 +494,7 @@ pub async fn diagnose_rule(
         let row = node_by_id.get(r.node_id.as_str()).copied();
         statuses.push(NodeDiagnoseStatus::Result {
             group_name: row.map(|x| x.group_name.clone()).unwrap_or_default(),
-            public_ip: row.and_then(|x| x.public_ip.clone()),
+            country_code: row.and_then(|x| x.country_code.clone()),
             result: r.clone(),
         });
     }
@@ -503,7 +504,7 @@ pub async fn diagnose_rule(
             statuses.push(NodeDiagnoseStatus::Timeout {
                 node_id: nid.clone(),
                 group_name: row.map(|x| x.group_name.clone()).unwrap_or_default(),
-                public_ip: row.and_then(|x| x.public_ip.clone()),
+                country_code: row.and_then(|x| x.country_code.clone()),
             });
         }
     }
@@ -619,8 +620,8 @@ pub async fn receive_diagnose_result(
 
 /// Parse the kvs node_status rows for one group into structured rows. v0.4.15:
 /// `group_name` is passed in by the caller (which has already loaded the group)
-/// and attached to each row; `public_ip` is read from the status JSON for
-/// display. No extra DB lookup here.
+/// and attached to each row. GeoIP country metadata is read from the status
+/// JSON for privacy-safe display. No extra DB lookup here.
 pub(crate) async fn group_node_statuses(
     state: &AppState,
     group_id: i64,
@@ -656,16 +657,24 @@ pub(crate) async fn group_node_statuses(
             .and_then(|x| x.as_str())
             .map(|s| s.to_string())
             .unwrap_or(node_id);
-        // v0.4.15: public_ip for display ("分组名 · 公网IP"). Read defensively —
-        // older/edge nodes may omit it.
+        // Kept for the restart endpoint. Diagnosis never serializes this field.
         let public_ip = v
             .get("public_ip")
             .and_then(|x| x.as_str())
             .map(|s| s.to_string());
+        // Prefer IPv4 because public_ip historically referred to the IPv4
+        // address; fall back to IPv6 for IPv6-only nodes.
+        let country_code = v
+            .get("ipv4_country_code")
+            .and_then(|x| x.as_str())
+            .or_else(|| v.get("ipv6_country_code").and_then(|x| x.as_str()))
+            .filter(|code| code.len() == 2)
+            .map(|code| code.to_ascii_uppercase());
         out.push(NodeStatusRow {
             node_id: nid,
             node_version,
             public_ip,
+            country_code,
             group_name: group_name.clone(),
         });
     }
@@ -691,14 +700,14 @@ fn classify_node(n: &NodeStatusRow, online: &std::collections::HashSet<String>) 
             node_id: nid,
             node_version: n.node_version.clone().unwrap_or_default(),
             group_name: n.group_name.clone(),
-            public_ip: n.public_ip.clone(),
+            country_code: n.country_code.clone(),
         });
     }
     if !online.contains(&nid) {
         return ClassifyOutcome::Status(NodeDiagnoseStatus::ControlChannelOffline {
             node_id: nid,
             group_name: n.group_name.clone(),
-            public_ip: n.public_ip.clone(),
+            country_code: n.country_code.clone(),
         });
     }
     ClassifyOutcome::Candidate(nid)
@@ -833,15 +842,14 @@ mod tests {
         let _ = TargetProbeOutcome::Timeout; // variant exists
     }
 
-    /// v0.4.15: every NodeDiagnoseStatus variant carries group_name + public_ip
-    /// (panel-supplied display fields) on the wire, so the frontend can always
-    /// render "分组名 · 公网IP" — node_id is NEVER the visible label.
+    /// Diagnosis responses expose only a country code, never the node's public
+    /// IP. Keep this as a serialization-level privacy regression test.
     #[test]
-    fn all_variants_carry_group_name_and_public_ip() {
-        // Result variant (result fields stay flattened; group_name/public_ip inline).
+    fn all_variants_carry_country_code_without_public_ip() {
+        // Result variant (result fields stay flattened; display fields inline).
         let res = NodeDiagnoseStatus::Result {
             group_name: "g1".into(),
-            public_ip: Some("1.2.3.4".into()),
+            country_code: Some("HK".into()),
             result: mk_result("r", "n"),
         };
         let j = serde_json::to_string(&res).unwrap();
@@ -851,9 +859,11 @@ mod tests {
             "group_name missing: {j}"
         );
         assert!(
-            j.contains("\"public_ip\":\"1.2.3.4\""),
-            "public_ip missing: {j}"
+            j.contains("\"country_code\":\"HK\""),
+            "country_code missing: {j}"
         );
+        assert!(!j.contains("public_ip"), "public_ip field leaked: {j}");
+        assert!(!j.contains("1.2.3.4"), "public IP value leaked: {j}");
         // Result's own fields must still be present (flatten intact).
         assert!(
             j.contains("\"node_id\":\"n\""),
@@ -866,7 +876,7 @@ mod tests {
                     node_id: "n".into(),
                     node_version: "0.4.13".into(),
                     group_name: "g1".into(),
-                    public_ip: Some("1.2.3.4".into()),
+                    country_code: Some("HK".into()),
                 },
                 "unsupported",
             ),
@@ -874,7 +884,7 @@ mod tests {
                 NodeDiagnoseStatus::ControlChannelOffline {
                     node_id: "n".into(),
                     group_name: "g1".into(),
-                    public_ip: None,
+                    country_code: None,
                 },
                 "control_channel_offline",
             ),
@@ -882,7 +892,7 @@ mod tests {
                 NodeDiagnoseStatus::Timeout {
                     node_id: "n".into(),
                     group_name: "g1".into(),
-                    public_ip: Some("9.9.9.9".into()),
+                    country_code: Some("US".into()),
                 },
                 "timeout",
             ),
@@ -891,24 +901,36 @@ mod tests {
             let j = serde_json::to_string(s).unwrap();
             assert!(j.contains(&format!("\"status\":\"{tag}\"")), "{tag}: {j}");
             assert!(j.contains("\"group_name\":\"g1\""), "{tag} group_name: {j}");
+            assert!(
+                !j.contains("public_ip"),
+                "{tag} public_ip field leaked: {j}"
+            );
             // node_id stays present on the wire (for the tooltip), just not as
             // the visible label — that's a frontend concern.
             assert!(j.contains("\"node_id\":\"n\""), "{tag} node_id: {j}");
         }
-        // public_ip serializes as null when None (control_channel_offline above).
+        // Unknown country remains explicit null, while the sensitive field is absent.
         let off = serde_json::to_string(&cases[1].0).unwrap();
         assert!(
-            off.contains("\"public_ip\":null"),
-            "None public_ip must be explicit null, not omitted: {off}"
+            off.contains("\"country_code\":null"),
+            "None country_code must be explicit null, not omitted: {off}"
         );
+        assert!(!off.contains("public_ip"), "public_ip field leaked: {off}");
     }
 
     /// v0.4.15: the four classification scenarios via the pure classify_node.
-    fn row(node_id: &str, ver: Option<&str>, ip: Option<&str>) -> NodeStatusRow {
+    fn row(
+        node_id: &str,
+        ver: Option<&str>,
+        country_code: Option<&str>,
+    ) -> NodeStatusRow {
         NodeStatusRow {
             node_id: node_id.into(),
             node_version: ver.map(String::from),
-            public_ip: ip.map(String::from),
+            // An internal IP is deliberately present so tests prove diagnosis
+            // classification does not copy it into the public response.
+            public_ip: Some("203.0.113.10".into()),
+            country_code: country_code.map(String::from),
             group_name: "g1".into(),
         }
     }
@@ -918,7 +940,7 @@ mod tests {
     fn classify_recent_online_is_candidate() {
         let online: std::collections::HashSet<String> = ["n1".into()].into_iter().collect();
         assert!(matches!(
-            classify_node(&row("n1", Some("0.4.14"), Some("1.1.1.1")), &online),
+            classify_node(&row("n1", Some("0.4.14"), Some("HK")), &online),
             ClassifyOutcome::Candidate(n) if n == "n1"
         ));
     }
@@ -927,7 +949,7 @@ mod tests {
     #[test]
     fn classify_old_version_is_unsupported() {
         let online: std::collections::HashSet<String> = ["n2".into()].into_iter().collect();
-        match classify_node(&row("n2", Some("0.4.13"), Some("2.2.2.2")), &online) {
+        match classify_node(&row("n2", Some("0.4.13"), Some("JP")), &online) {
             ClassifyOutcome::Status(NodeDiagnoseStatus::Unsupported { node_version, .. }) => {
                 assert_eq!(node_version, "0.4.13")
             }
@@ -939,7 +961,7 @@ mod tests {
     #[test]
     fn classify_recent_ws_offline() {
         let online: std::collections::HashSet<String> = [].into_iter().collect();
-        match classify_node(&row("n3", Some("0.4.14"), Some("3.3.3.3")), &online) {
+        match classify_node(&row("n3", Some("0.4.14"), Some("US")), &online) {
             ClassifyOutcome::Status(NodeDiagnoseStatus::ControlChannelOffline { .. }) => {}
             other => panic!("expected ControlChannelOffline, got {other:?}"),
         }
@@ -950,9 +972,9 @@ mod tests {
     fn classify_multi_node_group() {
         let online: std::collections::HashSet<String> = ["a".into()].into_iter().collect(); // only node 'a' is online
         let nodes = vec![
-            row("a", Some("0.4.14"), Some("1.1.1.1")), // online → candidate
+            row("a", Some("0.4.14"), Some("HK")),      // online → candidate
             row("b", Some("0.4.13"), None),            // old → unsupported
-            row("c", Some("0.4.14"), Some("3.3.3.3")), // recent but offline
+            row("c", Some("0.4.14"), Some("US")),      // recent but offline
         ];
         let mut candidates = 0;
         let mut unsupported = 0;
@@ -972,20 +994,19 @@ mod tests {
         assert_eq!(offline, 1, "node c is WS-offline");
     }
 
-    /// v0.4.15 #1: group_name is filled on every status (for the "分组名·公网IP"
-    /// label). A regular user binding an admin-shared group must see the real
-    /// group name, not #group_id.
+    /// The group name and country code are filled on every status. A regular
+    /// user binding an admin-shared group sees the real group name and flag.
     #[test]
-    fn classify_carries_group_name_and_ip() {
+    fn classify_carries_group_name_and_country_code() {
         let online: std::collections::HashSet<String> = [].into_iter().collect();
-        match classify_node(&row("n4", Some("0.4.14"), Some("9.9.9.9")), &online) {
+        match classify_node(&row("n4", Some("0.4.14"), Some("SG")), &online) {
             ClassifyOutcome::Status(NodeDiagnoseStatus::ControlChannelOffline {
                 group_name,
-                public_ip,
+                country_code,
                 ..
             }) => {
                 assert_eq!(group_name, "g1");
-                assert_eq!(public_ip.as_deref(), Some("9.9.9.9"));
+                assert_eq!(country_code.as_deref(), Some("SG"));
             }
             other => panic!("got {other:?}"),
         }

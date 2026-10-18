@@ -586,15 +586,13 @@ export interface DiagnoseResult {
  *  feature but NOT the secure-challenge protocol (0.4.8), or have no diagnose
  *  at all (<0.4.8). The panel never sent them a probe; the UI shows
  *  "诊断协议过旧，请升级". */
-/** v0.4.15: group_name + public_ip are PANEL-supplied display fields on every
- *  variant (the node's diagnose wire message is unchanged). The frontend shows
- *  "分组名 · 公网IP" as the node label; node_id stays in a tooltip only and is
- *  never rendered as a visible label. */
+/** group_name + country_code are PANEL-supplied, privacy-safe display fields on
+ *  every variant. Public IP addresses are deliberately excluded. */
 export type NodeDiagnoseStatus =
-  | ({ status: 'result'; group_name: string; public_ip?: string | null } & DiagnoseResult)
-  | { status: 'unsupported'; node_id: string; node_version: string; group_name: string; public_ip?: string | null }
-  | { status: 'control_channel_offline'; node_id: string; group_name: string; public_ip?: string | null }
-  | { status: 'timeout'; node_id: string; group_name: string; public_ip?: string | null };
+  | ({ status: 'result'; group_name: string; country_code?: string | null } & DiagnoseResult)
+  | { status: 'unsupported'; node_id: string; node_version: string; group_name: string; country_code?: string | null }
+  | { status: 'control_channel_offline'; node_id: string; group_name: string; country_code?: string | null }
+  | { status: 'timeout'; node_id: string; group_name: string; country_code?: string | null };
 
 export interface DiagnoseResponse {
   request_id: string;

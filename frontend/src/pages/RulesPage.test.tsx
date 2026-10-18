@@ -3,9 +3,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 
-const { mockGet, mockPut } = vi.hoisted(() => ({ mockGet: vi.fn(), mockPut: vi.fn() }));
+const { mockGet, mockPost, mockPut } = vi.hoisted(() => ({ mockGet: vi.fn(), mockPost: vi.fn(), mockPut: vi.fn() }));
 vi.mock('../api/client', () => ({
-  default: { get: mockGet, post: vi.fn(), put: mockPut, delete: vi.fn() },
+  default: { get: mockGet, post: mockPost, put: mockPut, delete: vi.fn() },
 }));
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock('../auth/useAuth', () => ({ useAuth: mockUseAuth }));
@@ -55,6 +55,8 @@ function routes({ rules, groups }: { rules?: unknown; groups?: unknown }) {
 
 beforeEach(() => {
   mockGet.mockReset();
+  mockPost.mockReset();
+  mockPost.mockResolvedValue(ok(null));
   mockPut.mockReset();
   mockPut.mockResolvedValue(ok(null));
   mockUseAuth.mockReset();
@@ -286,6 +288,36 @@ describe('row actions name their rule', () => {
     await waitFor(() => expect(screen.getByText('hk-web')).toBeInTheDocument());
     expect(screen.getByLabelText('searchRulePlaceholder')).toBeInTheDocument();
     expect(screen.getByLabelText('filterByGroup')).toBeInTheDocument();
+  });
+});
+
+describe.each([
+  ['administrator', true],
+  ['regular user', false],
+] as const)('diagnosis node privacy for %s', (_role, isAdmin) => {
+  it('shows a country flag and never renders the public IP', async () => {
+    mockUseAuth.mockReturnValue({ isAdmin, user: { id: isAdmin ? 1 : 2, username: isAdmin ? 'admin' : 'user' } });
+    mockPost.mockResolvedValue(ok({
+      request_id: 'req-1',
+      rule_id: 1,
+      nodes: [{
+        status: 'timeout',
+        node_id: 'node-secret',
+        group_name: 'XLEE7S-BGP',
+        country_code: 'HK',
+        // A stale server/client must not make this legacy field visible.
+        public_ip: '82.139.204.92',
+      }],
+    }));
+
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'diagnose hk-web' }));
+
+    await screen.findByText('XLEE7S-BGP');
+    expect(document.querySelector('.country-flag-pill .fi-hk')).toBeInTheDocument();
+    expect(screen.queryByText(/82\.139\.204\.92/)).not.toBeInTheDocument();
+    expect(mockPost).toHaveBeenCalledWith('/rules/1/diagnose');
   });
 });
 

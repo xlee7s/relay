@@ -10,6 +10,7 @@ import { useI18n } from '../i18n/context';
 import { formatBytes } from '../utils/format';
 import { useAuth } from '../auth/useAuth';
 import { asValidatedEntry, buildExportJSON, exportFileLabel, parseDest, ruleTargets, validateImportEntry } from '../utils/rulesIO';
+import { CountryFlag } from '../components/nodes/CountryFlag';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -1262,13 +1263,16 @@ const IMPORT_DEFAULTS = {
   );
 }
 
-/** Render one node's diagnosis row. v0.4.15: the visible label is
- *  "分组名 · 公网IP" (or "分组名 · IP 未上报"), NEVER the raw node_id. node_id is
- *  admin-only (tooltip for troubleshooting); a regular user sees just the
- *  label. Same shape across all four statuses; the status tag + details differ. */
+/** Render one node's diagnosis row without exposing its public IP. The visible
+ *  identity is the group name plus a country flag. node_id remains admin-only
+ *  in a troubleshooting tooltip. */
 function DiagnoseNodeRow({ node, t, isAdmin }: { node: NodeDiagnoseStatus; t: (k: string) => string; isAdmin: boolean }) {
-  const label = `${node.group_name || '-'} · ${node.public_ip || t('diagnoseIpMissing')}`;
-  const labelText = <Text strong>{label}</Text>;
+  const labelText = (
+    <Space size={6} align="center">
+      <Text strong>{node.group_name || '-'}</Text>
+      <CountryFlag code={node.country_code} />
+    </Space>
+  );
   // node_id is internal — only an admin gets the troubleshooting tooltip.
   const labelWithId = isAdmin
     ? <Tooltip title={t('diagnoseNodeIdLabel') + node.node_id}>{labelText}</Tooltip>
