@@ -919,11 +919,7 @@ mod tests {
     }
 
     /// v0.4.15: the four classification scenarios via the pure classify_node.
-    fn row(
-        node_id: &str,
-        ver: Option<&str>,
-        country_code: Option<&str>,
-    ) -> NodeStatusRow {
+    fn row(node_id: &str, ver: Option<&str>, country_code: Option<&str>) -> NodeStatusRow {
         NodeStatusRow {
             node_id: node_id.into(),
             node_version: ver.map(String::from),
@@ -972,9 +968,9 @@ mod tests {
     fn classify_multi_node_group() {
         let online: std::collections::HashSet<String> = ["a".into()].into_iter().collect(); // only node 'a' is online
         let nodes = vec![
-            row("a", Some("0.4.14"), Some("HK")),      // online → candidate
-            row("b", Some("0.4.13"), None),            // old → unsupported
-            row("c", Some("0.4.14"), Some("US")),      // recent but offline
+            row("a", Some("0.4.14"), Some("HK")), // online → candidate
+            row("b", Some("0.4.13"), None),       // old → unsupported
+            row("c", Some("0.4.14"), Some("US")), // recent but offline
         ];
         let mut candidates = 0;
         let mut unsupported = 0;
