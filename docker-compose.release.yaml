@@ -61,7 +61,7 @@ services:
     # v1.2: the node image tag is INDEPENDENT of the panel tag. Override
     # RELAYPANEL_NODE_TAG in .env to pin a node version that differs from the
     # panel version.
-    image: ghcr.io/xlee7s/relay-node:${RELAYPANEL_NODE_TAG:-1.2.7}
+    image: ghcr.io/xlee7s/relay-node:${RELAYPANEL_NODE_TAG:-1.2.8}
     profiles:
       - node
     network_mode: host

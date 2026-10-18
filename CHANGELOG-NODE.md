@@ -11,6 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.8] - 2026-10-19
+
+Maintenance release published alongside panel `v1.2.14`. The forwarding
+protocol remains at version 4, so panel and node can still be upgraded
+independently.
+
+### Changed
+
+- Refreshed the node binaries and Docker image from the current repository
+  baseline so new installations and the panel's node-upgrade flow resolve to
+  `node-v1.2.8`.
+
 ## [1.2.7] - 2026-10-17
 
 Maintenance release published alongside panel `v1.2.13`. The forwarding
