@@ -620,8 +620,9 @@ pub async fn receive_diagnose_result(
 
 /// Parse the kvs node_status rows for one group into structured rows. v0.4.15:
 /// `group_name` is passed in by the caller (which has already loaded the group)
-/// and attached to each row. GeoIP country metadata is read from the status
-/// JSON for privacy-safe display. No extra DB lookup here.
+/// and attached to each row. GeoIP country metadata is resolved from the same
+/// cached `geoip:{ip}` entries used by the node-status pages; the IP is kept
+/// internal and is never serialized in a diagnosis response.
 pub(crate) async fn group_node_statuses(
     state: &AppState,
     group_id: i64,
@@ -657,19 +658,21 @@ pub(crate) async fn group_node_statuses(
             .and_then(|x| x.as_str())
             .map(|s| s.to_string())
             .unwrap_or(node_id);
-        // Kept for the restart endpoint. Diagnosis never serializes this field.
-        let public_ip = v
-            .get("public_ip")
+        // New status payloads use public_ipv4/public_ipv6; public_ip is the
+        // legacy IPv4 field. Keep one address internally for the restart
+        // endpoint, but never serialize it in a diagnosis response.
+        let public_ipv4 = v
+            .get("public_ipv4")
             .and_then(|x| x.as_str())
-            .map(|s| s.to_string());
-        // Prefer IPv4 because public_ip historically referred to the IPv4
-        // address; fall back to IPv6 for IPv6-only nodes.
-        let country_code = v
-            .get("ipv4_country_code")
+            .or_else(|| v.get("public_ip").and_then(|x| x.as_str()))
+            .map(str::to_owned);
+        let public_ipv6 = v
+            .get("public_ipv6")
             .and_then(|x| x.as_str())
-            .or_else(|| v.get("ipv6_country_code").and_then(|x| x.as_str()))
-            .filter(|code| code.len() == 2)
-            .map(|code| code.to_ascii_uppercase());
+            .map(str::to_owned);
+        let public_ip = public_ipv4.clone().or_else(|| public_ipv6.clone());
+        let country_code =
+            cached_country_code(state, public_ipv4.as_deref(), public_ipv6.as_deref()).await;
         out.push(NodeStatusRow {
             node_id: nid,
             node_version,
@@ -679,6 +682,26 @@ pub(crate) async fn group_node_statuses(
         });
     }
     Ok(out)
+}
+
+/// Read a privacy-safe country code from the existing GeoIP cache. Prefer
+/// IPv4 so the result matches the first address displayed on node-status
+/// pages, then fall back to IPv6 for IPv6-only nodes.
+async fn cached_country_code(
+    state: &AppState,
+    public_ipv4: Option<&str>,
+    public_ipv6: Option<&str>,
+) -> Option<String> {
+    for ip in [public_ipv4, public_ipv6].into_iter().flatten() {
+        if let Some(code) = crate::api::geoip::read_cache(state.db.as_ref(), ip)
+            .await
+            .and_then(|entry| entry.country_code)
+            .filter(|code| code.len() == 2)
+        {
+            return Some(code.to_ascii_uppercase());
+        }
+    }
+    None
 }
 
 /// v0.4.15: pure classification decision for one node, extracted so the four
@@ -716,7 +739,83 @@ fn classify_node(n: &NodeStatusRow, online: &std::collections::HashSet<String>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::system::ReleaseCache;
+    use crate::api::ws::NodeConnections;
+    use crate::config::Config;
+    use crate::db::schema::SCHEMA_SQL;
+    use crate::db::sqlite_repo::SqliteRepository;
     use relay_shared::protocol::{DiagnoseResult, TargetProbeOutcome};
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    async fn test_state() -> AppState {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("connect memory db");
+        sqlx::query(SCHEMA_SQL)
+            .execute(&pool)
+            .await
+            .expect("create schema");
+        AppState {
+            db: Arc::new(SqliteRepository::new(pool)),
+            config: Config {
+                database_path: "sqlite::memory:".into(),
+                listen: "127.0.0.1:0".into(),
+                key: "test-key".into(),
+                jwt_secret: "test-secret".into(),
+                public_dir: "public".into(),
+                public_panel_url: String::new(),
+                registration_enabled: false,
+                cors_origins: vec![],
+                geoip_enabled: false,
+                geoip_cache_ttl: 604_800,
+            },
+            release_cache: ReleaseCache::new(),
+            node_connections: NodeConnections::new(),
+            diagnose: DiagnoseRegistry::new(),
+            geoip_in_flight: Arc::new(Mutex::new(std::collections::HashSet::new())),
+        }
+    }
+
+    #[tokio::test]
+    async fn group_node_statuses_uses_geoip_cache_without_exposing_ip() {
+        let state = test_state().await;
+        state
+            .db
+            .set(
+                "node_status:7:n1",
+                r#"{"node_id":"n1","node_version":"0.4.19","public_ipv4":"82.139.204.92"}"#,
+            )
+            .await
+            .unwrap();
+        state
+            .db
+            .set(
+                "geoip:82.139.204.92",
+                r#"{"country_code":"de","country_name":"Germany","cached_at":1}"#,
+            )
+            .await
+            .unwrap();
+
+        let rows = group_node_statuses(&state, 7, "VJTH-BGP".into())
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].country_code.as_deref(), Some("DE"));
+
+        let public = classify_node(&rows[0], &std::collections::HashSet::new());
+        let ClassifyOutcome::Status(status) = public else {
+            panic!("offline test node must produce a public status")
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("\"country_code\":\"DE\""), "{json}");
+        assert!(!json.contains("82.139.204.92"), "public IP leaked: {json}");
+        assert!(
+            !json.contains("public_ip"),
+            "public IP field leaked: {json}"
+        );
+    }
 
     fn mk_result(req: &str, nid: &str) -> DiagnoseResult {
         DiagnoseResult {

@@ -8,6 +8,18 @@ independent `v*` / `node-v*` tracks since this release).
 
 ---
 
+## [1.2.15] - 2026-10-19
+
+Ships alongside `node-v1.2.9`; the forwarding protocol is unchanged.
+
+### Fixed
+
+- Rule diagnosis now resolves each node's country from the same cached GeoIP
+  data used by the node-status pages, so the correct country flag is shown
+  while public IP addresses remain hidden from administrators and users.
+- Removed the unnecessary leading colon before the listener port in the
+  diagnosis view.
+
 ## [1.2.14] - 2026-10-19
 
 Panel-only security and privacy update. The relay node remains at

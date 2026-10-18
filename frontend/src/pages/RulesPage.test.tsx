@@ -66,6 +66,7 @@ beforeEach(() => {
     rules: ok([rule(), rule({ id: 2, name: 'jp-game', listen_port: 10002, device_group_in: 8 })]),
     groups: ok([group(), group({ id: 8, name: 'jp-line' })]),
   });
+
 });
 
 describe('batch inbound switching', () => {
@@ -318,6 +319,33 @@ describe.each([
     expect(document.querySelector('.country-flag-pill .fi-hk')).toBeInTheDocument();
     expect(screen.queryByText(/82\.139\.204\.92/)).not.toBeInTheDocument();
     expect(mockPost).toHaveBeenCalledWith('/rules/1/diagnose');
+  });
+
+  it('shows the listener port without a leading colon', async () => {
+    mockUseAuth.mockReturnValue({ isAdmin, user: { id: isAdmin ? 1 : 2, username: isAdmin ? 'admin' : 'user' } });
+    mockPost.mockResolvedValue(ok({
+      request_id: 'req-2',
+      rule_id: 1,
+      nodes: [{
+        status: 'result',
+        node_id: 'node-1',
+        group_name: 'VJTH-BGP',
+        country_code: 'JP',
+        listener_running: true,
+        listen_port: 31797,
+        protocol: 'tcp',
+        transport: 'raw',
+        results: [],
+      }],
+    }));
+
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'diagnose hk-web' }));
+
+    await screen.findByText('31797');
+    expect(screen.queryByText(':31797')).not.toBeInTheDocument();
+    expect(document.querySelector('.country-flag-pill .fi-jp')).toBeInTheDocument();
   });
 });
 

@@ -1286,7 +1286,7 @@ function DiagnoseNodeRow({ node, t, isAdmin }: { node: NodeDiagnoseStatus; t: (k
             <Tag color={node.listener_running ? 'green' : 'red'}>
               {node.listener_running ? t('diagnoseListenerRunning') : t('diagnoseListenerStopped')}
             </Tag>
-            {node.listen_port ? <Text type="secondary">:{node.listen_port}</Text> : null}
+            {node.listen_port ? <Text type="secondary">{node.listen_port}</Text> : null}
             {node.protocol ? <Tag>{node.protocol}</Tag> : null}
             {node.transport ? <Tag>{node.transport}</Tag> : null}
           </>
