@@ -8,6 +8,18 @@ independent `v*` / `node-v*` tracks since this release).
 
 ---
 
+## [1.2.16] - 2026-10-19
+
+Ships alongside `node-v1.2.10`; the forwarding protocol is unchanged.
+
+### Changed
+
+- Replaced deprecated numeric input addons with one responsive connected
+  control for prefix labels, values, and units across notification settings,
+  plans, user management, and forwarding rules.
+- Unified inner corners, borders, spacing, and unit widths so the controls
+  remain visually continuous on both desktop and mobile layouts.
+
 ## [1.2.15] - 2026-10-19
 
 Ships alongside `node-v1.2.9`; the forwarding protocol is unchanged.

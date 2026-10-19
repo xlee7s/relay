@@ -11,6 +11,7 @@ import { formatBytes } from '../utils/format';
 import { useAuth } from '../auth/useAuth';
 import { asValidatedEntry, buildExportJSON, exportFileLabel, parseDest, ruleTargets, validateImportEntry } from '../utils/rulesIO';
 import { CountryFlag } from '../components/nodes/CountryFlag';
+import NumberWithUnit from '../components/NumberWithUnit';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -830,7 +831,7 @@ const IMPORT_DEFAULTS = {
           },
         }]}
       >
-        <InputNumber min={0} style={{ width: '100%' }} addonAfter={t('minutes')} placeholder="0" />
+        <NumberWithUnit min={0} style={{ width: '100%' }} unit={t('minutes')} placeholder="0" />
       </Form.Item>
     </>
     );
@@ -1132,8 +1133,8 @@ const IMPORT_DEFAULTS = {
                   extra={t('rateLimitsHint')}
                 >
                   <Space orientation="vertical" style={{ width: '100%' }}>
-                    <Form.Item name="upload_limit_mbps" noStyle initialValue={0}><InputNumber min={0} addonBefore={t('uploadLimit')} addonAfter="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                    <Form.Item name="download_limit_mbps" noStyle initialValue={0}><InputNumber min={0} addonBefore={t('downloadLimit')} addonAfter="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                    <Form.Item name="upload_limit_mbps" noStyle initialValue={0}><NumberWithUnit min={0} prefixLabel={t('uploadLimit')} unit="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                    <Form.Item name="download_limit_mbps" noStyle initialValue={0}><NumberWithUnit min={0} prefixLabel={t('downloadLimit')} unit="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
                   </Space>
                 </Form.Item>
                 {/* v1.2.0: the connection cap / auto-restart controls are
@@ -1188,8 +1189,8 @@ const IMPORT_DEFAULTS = {
                   extra={t('rateLimitsHint')}
                 >
                   <Space orientation="vertical" style={{ width: '100%' }}>
-                    <Form.Item name="upload_limit_mbps" noStyle initialValue={0}><InputNumber min={0} addonBefore={t('uploadLimit')} addonAfter="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
-                    <Form.Item name="download_limit_mbps" noStyle initialValue={0}><InputNumber min={0} addonBefore={t('downloadLimit')} addonAfter="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                    <Form.Item name="upload_limit_mbps" noStyle initialValue={0}><NumberWithUnit min={0} prefixLabel={t('uploadLimit')} unit="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
+                    <Form.Item name="download_limit_mbps" noStyle initialValue={0}><NumberWithUnit min={0} prefixLabel={t('downloadLimit')} unit="Mbps" style={{ width: '100%' }} placeholder="0" /></Form.Item>
                   </Space>
                 </Form.Item>
                 {renderConnectionControls(editProto)}

@@ -10,6 +10,7 @@ import { formatChinaTime } from '../utils/dateTime';
 import { formatBytes } from '../utils/format';
 import { makePasswordValidator } from '../utils/password';
 import { useAuth } from '../auth/useAuth';
+import NumberWithUnit from '../components/NumberWithUnit';
 
 // traffic_limit is stored in BYTES in the database. The edit form works in GB
 // for usability (a raw byte count is meaningless to a human). Convert on the
@@ -461,14 +462,14 @@ export default function Users() {
               column and matches the backend parser. precision=2 matches the
               backend's "at most 2 fraction digits" rule.
             */}
-            <InputNumber
+            <NumberWithUnit
               stringMode
               min={0}
               max={9999999999.99}
               step={0.01}
               precision={2}
               style={{ width: '100%' }}
-              addonBefore={t('balanceUnit')}
+              prefixLabel={t('balanceUnit')}
               placeholder="0.00"
             />
           </Form.Item>
@@ -485,7 +486,7 @@ export default function Users() {
             tooltip={t('trafficLimitGbHint')}
             rules={[{ type: 'number', min: 0, message: t('trafficLimitNonNegative') }]}
           >
-            <InputNumber min={0} step={1} style={{ width: '100%' }} addonAfter="GB" />
+            <NumberWithUnit min={0} step={1} style={{ width: '100%' }} unit="GB" />
           </Form.Item>
           <Form.Item name="banned" label={t('banned')} valuePropName="checked">
             <Switch disabled={!!editing?.admin} />

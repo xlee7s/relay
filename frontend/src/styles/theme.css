@@ -469,6 +469,61 @@ body {
   background: #f5f7fb !important;
 }
 
+/* One continuous field for numeric prefixes and units. This replaces Ant's
+   deprecated InputNumber addons, whose inner corners were overridden by the
+   global rounded-input rule and looked like separate pills. */
+.rp-number-combo {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+}
+
+.rp-number-combo__input.ant-input-number {
+  z-index: 1;
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+}
+
+.rp-number-combo__input.ant-input-number:hover,
+.rp-number-combo__input.ant-input-number-focused {
+  z-index: 2;
+}
+
+.rp-number-combo__addon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 52px;
+  padding-inline: 13px;
+  align-items: center;
+  justify-content: center;
+  color: var(--rp-text-secondary);
+  border: 1px solid var(--rp-border-strong);
+  background: #f5f7fb;
+  white-space: nowrap;
+}
+
+.rp-number-combo__addon--prefix {
+  border-radius: var(--rp-radius-sm) 0 0 var(--rp-radius-sm);
+}
+
+.rp-number-combo__addon--unit {
+  margin-left: -1px;
+  border-radius: 0 var(--rp-radius-sm) var(--rp-radius-sm) 0;
+}
+
+.rp-number-combo--prefixed .rp-number-combo__input.ant-input-number {
+  margin-left: -1px;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+.rp-number-combo--suffixed .rp-number-combo__input.ant-input-number {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
 .ant-segmented {
   padding: 3px;
   background: #edf1f7;
@@ -824,7 +879,8 @@ body {
 }
 
 .rp-rule-form .ant-form-item-control-input-content .ant-space-compact,
-.rp-rule-form .ant-form-item-control-input-content .ant-input-number-group-wrapper {
+.rp-rule-form .ant-form-item-control-input-content .ant-input-number-group-wrapper,
+.rp-rule-form .ant-form-item-control-input-content .rp-number-combo {
   width: 100%;
   max-width: 252px;
 }

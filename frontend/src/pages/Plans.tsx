@@ -6,6 +6,7 @@ import type { ApiEnvelope, Plan, DeviceGroup } from '../api/types';
 import { useI18n } from '../i18n/context';
 import { formatBytes } from '../utils/format';
 import AllOrders from '../components/AllOrders';
+import NumberWithUnit from '../components/NumberWithUnit';
 
 const { Text } = Typography;
 
@@ -214,7 +215,7 @@ export default function Plans() {
           </Form.Item>
           <Space align="start" style={{ display: 'flex' }}>
             <Form.Item name="traffic_gb" label={t('planTrafficGb')} rules={[{ required: true }]} style={{ flex: 1 }} extra={t('planTrafficGbHint')}>
-              <InputNumber min={0} step={1} style={{ width: '100%' }} addonAfter="GB" />
+              <NumberWithUnit min={0} step={1} style={{ width: '100%' }} unit="GB" />
             </Form.Item>
             <Form.Item name="max_rules" label={t('planMaxRules')} rules={[{ required: true }]} initialValue={5} style={{ flex: 1 }}>
               <InputNumber min={0} max={100000} style={{ width: '100%' }} />
@@ -266,7 +267,7 @@ export default function Plans() {
           </Form.Item>
           <Space align="start" style={{ display: 'flex' }}>
             <Form.Item name="traffic_gb" label={t('planTrafficGb')} style={{ flex: 1 }} extra={t('planTrafficGbHint')}>
-              <InputNumber min={0} step={1} style={{ width: '100%' }} addonAfter="GB" />
+              <NumberWithUnit min={0} step={1} style={{ width: '100%' }} unit="GB" />
             </Form.Item>
             <Form.Item name="max_rules" label={t('planMaxRules')} style={{ flex: 1 }}>
               <InputNumber min={0} max={100000} style={{ width: '100%' }} />

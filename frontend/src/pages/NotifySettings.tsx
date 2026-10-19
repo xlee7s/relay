@@ -7,6 +7,7 @@ import { MIN_OFFLINE_ALERT_SECS } from '../api/types';
 import { useI18n } from '../i18n/context';
 import { formatChinaTime } from '../utils/dateTime';
 import type { I18nContextValue } from '../i18n/context';
+import NumberWithUnit from '../components/NumberWithUnit';
 
 const { Text } = Typography;
 
@@ -159,10 +160,10 @@ export default function NotifySettings() {
               </Col>
               <Col xs={24} lg={12}>
                 <Form.Item name="offline_alert_secs" label={t('offlineAlertSecs')} extra={t('offlineAlertSecsHint').replace('{min}', String(MIN_OFFLINE_ALERT_SECS))} rules={[{ validator: (_, v) => Number(v) >= MIN_OFFLINE_ALERT_SECS ? Promise.resolve() : Promise.reject(new Error(t('offlineAlertSecsTooSmall').replace('{min}', String(MIN_OFFLINE_ALERT_SECS)))) }]}>
-                  <InputNumber min={MIN_OFFLINE_ALERT_SECS} style={{ width: 180 }} addonAfter={t('seconds')} />
+                  <NumberWithUnit min={MIN_OFFLINE_ALERT_SECS} style={{ width: 180 }} unit={t('seconds')} />
                 </Form.Item>
                 <Form.Item name="repeat_alert_minutes" label={t('repeatAlertMinutes')} extra={t('repeatAlertMinutesHint')}>
-                  <InputNumber min={0} style={{ width: 180 }} addonAfter={t('minutes')} />
+                  <NumberWithUnit min={0} style={{ width: 180 }} unit={t('minutes')} />
                 </Form.Item>
                 <SwitchRow name="notify_version_outdated" label={t('notifyVersionOutdated')} hint={t('notifyVersionOutdatedHint')} />
               </Col>
