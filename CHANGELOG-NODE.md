@@ -11,6 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.11] - 2026-10-27
+
+Maintenance release published alongside panel `v1.2.17`. The forwarding
+protocol and runtime behavior are unchanged.
+
+### Changed
+
+- Refreshed the node Docker image and Linux amd64/arm64 release binaries for
+  the coordinated panel and node release.
+
 ## [1.2.10] - 2026-10-19
 
 Maintenance release published alongside panel `v1.2.16`. The forwarding

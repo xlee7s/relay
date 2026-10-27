@@ -481,8 +481,11 @@ body {
 
 .rp-number-combo__input.ant-input-number {
   z-index: 1;
-  flex: 1 1 auto;
-  width: 0;
+  /* Keep a real flex basis so the numeric field cannot collapse to zero when
+     the combo lives inside an intrinsically-sized Space item. It may still
+     shrink on narrow mobile layouts because min-width remains zero. */
+  flex: 1 1 120px;
+  width: 120px;
   min-width: 0;
 }
 
@@ -522,6 +525,18 @@ body {
 .rp-number-combo--suffixed .rp-number-combo__input.ant-input-number {
   border-top-right-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
+}
+
+/* Ant Space wraps every child in an extra .ant-space-item. Flex styles placed
+   on Form.Item therefore do not size the actual columns. Make plan form rows
+   genuinely equal-width so a unit cell can never squeeze out its input. */
+.rp-plan-form-row.ant-space {
+  width: 100%;
+}
+
+.rp-plan-form-row.ant-space > .ant-space-item {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .ant-segmented {

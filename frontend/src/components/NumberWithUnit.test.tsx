@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import NumberWithUnit from './NumberWithUnit';
 
@@ -21,5 +22,16 @@ describe('NumberWithUnit', () => {
     expect(container.querySelector('.rp-number-combo')).not.toHaveClass('rp-number-combo--prefixed');
     expect(container.querySelector('.rp-number-combo__addon--prefix')).not.toBeInTheDocument();
     expect(screen.getByText('GB')).toBeInTheDocument();
+  });
+
+  it('keeps the numeric field editable and the unit after it', async () => {
+    const user = userEvent.setup();
+    render(<NumberWithUnit unit="GB" aria-label="traffic" />);
+
+    const input = screen.getByRole('spinbutton', { name: 'traffic' });
+    await user.type(input, '100');
+
+    expect(input).toHaveValue('100');
+    expect(input.closest('.ant-input-number')?.nextElementSibling).toHaveTextContent('GB');
   });
 });

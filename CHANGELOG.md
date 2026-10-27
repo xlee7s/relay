@@ -8,6 +8,18 @@ independent `v*` / `node-v*` tracks since this release).
 
 ---
 
+## [1.2.17] - 2026-10-27
+
+Ships alongside `node-v1.2.11`; the forwarding protocol is unchanged.
+
+### Fixed
+
+- Prevented connected numeric inputs from collapsing inside intrinsically
+  sized form rows, keeping their editable value area visible on desktop and
+  mobile layouts.
+- Made every two-column plan form row share the available width evenly, so
+  traffic values remain editable and unit labels stay attached on the right.
+
 ## [1.2.16] - 2026-10-19
 
 Ships alongside `node-v1.2.10`; the forwarding protocol is unchanged.

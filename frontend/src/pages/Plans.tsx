@@ -213,7 +213,7 @@ export default function Plans() {
               onChange={(v) => { if (v === 'data') createForm.setFieldValue('duration_days', 0); }}
             />
           </Form.Item>
-          <Space align="start" style={{ display: 'flex' }}>
+          <Space className="rp-plan-form-row" align="start" style={{ display: 'flex' }}>
             <Form.Item name="traffic_gb" label={t('planTrafficGb')} rules={[{ required: true }]} style={{ flex: 1 }} extra={t('planTrafficGbHint')}>
               <NumberWithUnit min={0} step={1} style={{ width: '100%' }} unit="GB" />
             </Form.Item>
@@ -221,7 +221,7 @@ export default function Plans() {
               <InputNumber min={0} max={100000} style={{ width: '100%' }} />
             </Form.Item>
           </Space>
-          <Space align="start" style={{ display: 'flex' }}>
+          <Space className="rp-plan-form-row" align="start" style={{ display: 'flex' }}>
             <Form.Item name="price" label={t('planPrice')} rules={[{ required: true }]} style={{ flex: 1 }}>
               <Input placeholder="9.99" />
             </Form.Item>
@@ -244,7 +244,7 @@ export default function Plans() {
               options={groups.map((g) => ({ value: g.id, label: g.name }))}
             />
           </Form.Item>
-          <Space align="start" style={{ display: 'flex' }}>
+          <Space className="rp-plan-form-row" align="start" style={{ display: 'flex' }}>
             <Form.Item name="hidden" label={t('planHidden')} valuePropName="checked" style={{ flex: 1 }}>
               <Switch />
             </Form.Item>
@@ -265,7 +265,7 @@ export default function Plans() {
               onChange={(v) => { if (v === 'data') editForm.setFieldValue('duration_days', 0); }}
             />
           </Form.Item>
-          <Space align="start" style={{ display: 'flex' }}>
+          <Space className="rp-plan-form-row" align="start" style={{ display: 'flex' }}>
             <Form.Item name="traffic_gb" label={t('planTrafficGb')} style={{ flex: 1 }} extra={t('planTrafficGbHint')}>
               <NumberWithUnit min={0} step={1} style={{ width: '100%' }} unit="GB" />
             </Form.Item>
@@ -273,7 +273,7 @@ export default function Plans() {
               <InputNumber min={0} max={100000} style={{ width: '100%' }} />
             </Form.Item>
           </Space>
-          <Space align="start" style={{ display: 'flex' }}>
+          <Space className="rp-plan-form-row" align="start" style={{ display: 'flex' }}>
             <Form.Item name="price" label={t('planPrice')} style={{ flex: 1 }}><Input /></Form.Item>
             {editPlanType === 'time' && (
               <Form.Item name="duration_days" label={t('planDuration')} rules={[{ required: true, type: 'number', min: 1, message: t('planDurationHint') }]} style={{ flex: 1 }} extra={t('planDurationHint')}>
@@ -294,7 +294,7 @@ export default function Plans() {
               options={groups.map((g) => ({ value: g.id, label: g.name }))}
             />
           </Form.Item>
-          <Space align="start" style={{ display: 'flex' }}>
+          <Space className="rp-plan-form-row" align="start" style={{ display: 'flex' }}>
             <Form.Item name="hidden" label={t('planHidden')} valuePropName="checked" style={{ flex: 1 }}><Switch /></Form.Item>
             <Form.Item name="reset_traffic" label={t('planResetTraffic')} valuePropName="checked" style={{ flex: 1 }}><Switch /></Form.Item>
           </Space>
